@@ -1,42 +1,33 @@
-# Adaptive Filter Attention (AFA)
+# Robust Filter Attention (RFA)
 
-Adaptive Filter Attention (AFA) is a novel attention mechanism designed for filtering and forecasting in stochastic dynamical systems. Unlike standard attention mechanisms,
-AFA integrates an explicit, learnable linear time-invariant (LTI) dynamics model into the attention computation, allowing it to more robustly filter noise and infer latent state transitions.
+Robust Filter Attention (RFA) is an attention mechanism for sequence modeling under stochastic dynamics. It integrates a learnable linear time-invariant (LTI) state-space model directly into attention, enabling noise-aware aggregation and principled temporal propagation of information.
+
+Rather than comparing queries and keys directly, RFA evolves past representations forward under learned dynamics and
+computes attention weights based on residual consistency in Mahalanobis geometry, yielding robust, uncertainty-aware attention.
 
 ---
 
-## Key Idea
+# Key Features
 
-AFA uses a learned LTI dynamics model to propagate latent states before computing similarity. Instead of comparing a query with keys directly, AFA compares a
-predicted latent state (from the key, evolved to the query’s time point) to the query. The attention weights are then computed as a function of 
-how consistent the transition is under the learned dynamics, effectively filtering out observations that do not align with plausible state evolution.
-
-This framework introduces:
-- Treating inputs as latent states within a learned autonomous dynamical system rather than fixed exogenous signals.
-- Propagating keys forward through system dynamics before computing similarity, aligning attention with temporal evolution.
-- Efficient linear dynamics computation via matrix exponentials and diagonalization.
-- Precision-weighted maximum likelihood estimation combining evolved past measurements with analytically computed covariances.
-- Adaptive reweighting of precision matrices using residual-based Mahalanobis distances to correct for model error.
-- Replacing softmax with a robust, uncertainty-aware weighting scheme akin to an M-estimator.
-- Joint latent state estimation and prediction ensuring attention weights reflect confidence-consistent similarities.
+- Learned LTI dynamics embedded in attention.
+- State propagation via matrix exponentials and eigenbasis diagonalization.
+- Precision-weighted aggregation using analytically propagated covariances.
+- Residual-based reweighting for robustness to model mismatch and outliers.
+- Iterative refinement of latent state estimates via stacked layers.
 
 ## Repository Structure
 
 ```
-adaptive_filter_attention/
-│
+robust_filter_attention/
 ├── utils/                    # Complex-valued tensor utilities
-│
-├── dynamics/                 # Tools for simulating dynamical systems for testing
-│
-├── precision_attention/      # Core of AFA computations, including residuals, estimates, and propagated precision matrices
-|                               estimates, and propagated precision matrices
-│
+├── dynamics/                 # Dynamical system simulators for testing
+├── isotropic_rfa/            # Core RFA attention computations
 ├── model/                    # Neural network components
-│
 ├── training/                 # Training utilities and loops
-│
-└── visualization/            # Tools to visualize attention and predictions
+└── visualization/            # Attention and trajectory visualizations
 ```
 
-Also includes: Animations of predicted trajectories and attention matrices during training, for a simple 2D ODE
+Note: This repository contains the original research codebase used for all experiments and ablations in the paper.
+
+Training on Wikitext-103 or BabyLM 2025 requires (a) downloading these datasets and placing them in ./datsets and (b) downloading the GPT2 Tokenizer to ./gpt2_tokenizer. The model can be easily tested using Main - Dynamics Training, which generates its own synthetic data (a simulation of a simple LTI system).
+
