@@ -239,3 +239,109 @@ def autoregressive_sample(model, start_seq, max_gen_len, t_measure=None, t_shift
 ##########################################################################################
 ##########################################################################################
 
+def get_model_sde_snapshots(model):
+    """
+    Iterates through the model to find all RFA layers and 
+    extracts the final parameter values.
+    """
+    snapshot = {}
+    
+    # Track layer index manually if using ModuleList
+    layer_idx = 0
+    for name, module in model.named_modules():
+        if isinstance(module, MultiheadIsotropicRFA):
+            # We use the internal _get_sde_kernels logic to get the 
+            # 'transformed' (softplus/sigmoid) physical values
+            with torch.no_grad():
+                # Get the noise params from the module's state
+                noise_params = {
+                    'sigma': module.sigma_v,
+                    'eta': module.eta_v,
+                    'gamma': module.gamma_v,
+                    'sigma_tilde': module.sigma_tilde_v
+                }
+                
+                # Pass dummy time data just to trigger the kernel computation
+                # t_measure=None and delta_t=1.0 will return the scalar params
+                mu, _, _, _, _, sigma_sq, sigma_tilde_sq, eta_sq, gamma_sq = \
+                    module._get_sde_kernels(module.mu_v, module.omega_v, noise_params, 
+                                          t_measure=None, delta_t=torch.tensor([1.0]))
+                
+                snapshot[f"layer_{layer_idx}"] = {
+                    "mu": mu.cpu().numpy(),
+                    "sigma_sq": sigma_sq.cpu().numpy(),
+                    "sigma_tilde_sq": sigma_tilde_sq.cpu().numpy(),
+                    "eta_sq": eta_sq.cpu().numpy(),
+                    "gamma_sq": gamma_sq.cpu().numpy(),
+                    "tau": torch.nn.functional.softplus(module.tau_param).cpu().numpy(),
+                    "nu_over_d": (module.d_k_head * torch.nn.functional.softplus(module.nu_param) + 2.0) / module.d_k_head
+                }
+            layer_idx += 1
+            
+    return snapshot
+
+##########################################################################################
+##########################################################################################
+
+def print_layer_diagnostics(model):
+    print(f"\n{'='*140}")
+    # Header for the detailed head-wise readout
+    header = f"{'Layer':<6} | {'Head':<4} | {'mu':<8} | {'sigma^2':<10} | {'eta^2':<10} | {'sigma^2/2mu':<12} | {'Alpha':<10} | {'Horizon'}"
+    print(header)
+    print("-" * 140)
+    
+    layer_idx = 0
+    for name, module in model.named_modules():
+        if isinstance(module, MultiheadIsotropicRFA):
+            with torch.no_grad():
+                device = module.mu_v.device
+                t_buf = module.t_measure[0:1].unsqueeze(0)
+                
+                noise_params = {
+                    'sigma': module.sigma_v,
+                    'eta': module.eta_v,
+                    'gamma': module.gamma_v,
+                    'sigma_tilde': module.sigma_tilde_v
+                }
+                
+                # Retrieve physical values through the kernel function
+                mu, _, _, _, _, sigma_sq, _, eta_sq, _ = \
+                    module._get_sde_kernels(
+                        module.mu_v, 
+                        module.omega_v, 
+                        noise_params, 
+                        t_measure=t_buf, 
+                        delta_t=torch.tensor([1.0], device=device)
+                    )
+                
+                # Squeeze to get 1D arrays for iterating over heads
+                mu = mu.squeeze()
+                sigma_sq = sigma_sq.squeeze()
+                eta_sq = eta_sq.squeeze()
+                
+                for head_idx in range(module.n_heads):
+                    h_mu = mu[head_idx].item()
+                    h_sig = sigma_sq[head_idx].item()
+                    h_eta = eta_sq[head_idx].item()
+                    
+                    # Logic for mu=0 heads (Heads 0 and 1)
+                    if h_mu < 1e-7:
+                        sig_over_2mu = "N/A (Vault)"
+                        alpha = "N/A"
+                        horizon = "Inf"
+                    else:
+                        s2_2m = h_sig / (2 * h_mu)
+                        alpha_val = h_eta - s2_2m
+                        hor_val = 1.0 / h_mu
+                        
+                        sig_over_2mu = f"{s2_2m:<12.4f}"
+                        alpha = f"{alpha_val:<10.4f}"
+                        horizon = f"{hor_val:.1f}"
+
+                    print(f"L{layer_idx:<4} | H{head_idx:<3} | {h_mu:<8.4f} | {h_sig:<10.4f} | {h_eta:<10.4f} | {sig_over_2mu} | {alpha} | {horizon}")
+            
+            print("-" * 140) # Separator between layers
+            layer_idx += 1
+    print(f"{'='*140}\n")
+
+

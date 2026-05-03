@@ -83,7 +83,35 @@ def init_rope(n_heads, dim_target, base=10000.0):
 ##########################################################################################
 ##########################################################################################
 
-def init_spectrally_coupled_rope(n_heads, dim_target, b=0.2, zero_frac=0.25, base=10000.0):
+# def init_spectrally_coupled_rope(n_heads, dim_target, b=4.0, zero_frac=0.25, base=10000.0):
+#     """
+#     Initializes frequencies and decays in a coupled, sharded manner.
+#     Heads are ordered from SLOWEST (Head 0) to FASTEST (Head 7).
+#     """
+#     # Create Master Spectrum (Fastest to Slowest initially)
+#     master_dim = n_heads * dim_target
+#     omega_master = 1.0 / (base ** (torch.arange(master_dim).float() / master_dim))
+    
+#     # Flip to get Slowest to Fastest
+#     omega_master = torch.flip(omega_master, dims=[0])
+    
+#     # Shard so Head 0 gets the lowest frequencies
+#     omega_sharded = omega_master.view(n_heads, dim_target)
+    
+#     # Calculate Decays based on the Max Frequency per head
+#     # After flipping, the max omega for each head is at the end of the shard
+#     max_omegas = omega_sharded[:, -1]
+#     total_mus = b * max_omegas   
+#     # b = 1.0 corresponds to the critically damped regime
+    
+#     # Apply Zero Fraction to the SLOWEST heads (now at the start)
+#     n_unitary = int(n_heads * zero_frac)
+#     if n_unitary > 0:
+#         total_mus[:n_unitary] = 0.0
+        
+#     return omega_sharded, total_mus
+
+def init_spectrally_coupled_rope(n_heads, dim_target, zero_frac=0.0, base=10000.0, b=5.0, c=2.0, L=512):
     """
     Initializes frequencies and decays in a coupled, sharded manner.
     Heads are ordered from SLOWEST (Head 0) to FASTEST (Head 7).
@@ -109,7 +137,57 @@ def init_spectrally_coupled_rope(n_heads, dim_target, b=0.2, zero_frac=0.25, bas
     if n_unitary > 0:
         total_mus[:n_unitary] = 0.0
         
+#     mu_floor = c / L
+#     total_mus = torch.maximum(b * max_omegas, torch.full_like(max_omegas, mu_floor))
+        
     return omega_sharded, total_mus
+
+
+
+# def init_spectrally_coupled_rope_V2(
+#     n_heads,
+#     dim_target,
+#     n_zero_heads=0,
+#     base=10000.0,
+#     b=5.0,
+# ):
+#     """
+#     Spectrally-coupled RoPE with optional zero-frequency heads.
+
+#     - First n_zero_heads have ω = 0
+#     - Remaining heads use standard RoPE spectrum, compressed to fit remaining dims
+#     - Preserves exact RoPE functional form and spacing
+
+#     Heads are ordered from SLOWEST → FASTEST.
+#     """
+
+#     total_dim = n_heads * dim_target
+#     zero_dim = n_zero_heads * dim_target
+#     nonzero_dim = total_dim - zero_dim
+
+#     assert nonzero_dim > 0, "Need at least one nonzero-frequency head"
+
+#     # --- Build standard RoPE spectrum over reduced dimension
+#     idx = torch.arange(nonzero_dim).float()
+#     omega_nonzero = 1.0 / (base ** (idx / nonzero_dim))
+
+#     # Flip so slow → fast (same as your original)
+#     omega_nonzero = torch.flip(omega_nonzero, dims=[0])
+
+#     # --- Prepend zeros
+#     omega_master = torch.cat([
+#         torch.zeros(zero_dim),
+#         omega_nonzero
+#     ])
+
+#     # --- Reshape into heads
+#     omega_sharded = omega_master.view(n_heads, dim_target)
+
+#     # --- SC-RFA coupling
+#     max_omegas = omega_sharded[:, -1]
+#     total_mus = b * max_omegas
+
+#     return omega_sharded, total_mus
 
 ##########################################################################################
 ##########################################################################################

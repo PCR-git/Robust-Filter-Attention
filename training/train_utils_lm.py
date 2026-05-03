@@ -44,11 +44,11 @@ def single_epoch_rfa_lm(model, train_loader, history, optimizer, criterion, args
         # Clip Gradients
         nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
-        # SDE stability clipping
-        sde_params = [p for n, p in model.named_parameters() 
-                      if any(k in n for k in ['mu_', 'sigma_', 'eta_', 'gamma_'])]
-        if sde_params:
-            torch.nn.utils.clip_grad_norm_(sde_params, max_norm=1e-4)
+#         # SDE stability clipping
+#         sde_params = [p for n, p in model.named_parameters() 
+#                       if any(k in n for k in ['mu_', 'sigma_', 'eta_', 'gamma_'])]
+#         if sde_params:
+#             torch.nn.utils.clip_grad_norm_(sde_params, max_norm=1e-4)
 
         optimizer.step()
         if scheduler:

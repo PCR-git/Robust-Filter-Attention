@@ -296,6 +296,12 @@ class SpectralCoupledHeuristicAttention(nn.Module):
         )
         self.register_buffer("mu", total_mu)
             
+        # --- ALiBi Initialization ---
+        if self.args.use_alibi == True:
+            slopes = get_alibi_slopes(num_heads).view(-1)
+            slopes = torch.flip(slopes, dims=[0])
+            self.register_buffer('alibi_slopes', slopes.view(1, num_heads, 1, 1))
+            
     def forward(self, query, keys, values, causal=True):
         batch_size, seq_len, _ = query.shape
 
@@ -318,7 +324,7 @@ class SpectralCoupledHeuristicAttention(nn.Module):
         
         mu = self.mu.view(1, self.num_heads, 1, 1) 
         decay_multiplier = torch.exp(-mu * rel_dist)
-        attn_scores = attn_scores * decay_multiplier
+#         attn_scores = attn_scores * decay_multiplier
         
         if self.args.use_alibi == True:
             context_position = torch.arange(seq_len, device=query.device).unsqueeze(0)
@@ -332,6 +338,7 @@ class SpectralCoupledHeuristicAttention(nn.Module):
             attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
 
         attn_weights = F.softmax(attn_scores, dim=-1)
+        attn_weights = attn_weights * decay_multiplier
         context = torch.matmul(attn_weights, V)
 
         out = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.hidden_dim)
