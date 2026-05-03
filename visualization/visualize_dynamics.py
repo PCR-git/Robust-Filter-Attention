@@ -684,7 +684,6 @@ def visualize_results_attn(model, train_dataset, all_losses, R1, R1i, Pu, Pd, A,
         Values of state matrix
     """
     
-#     folder = "C://Users//Pracioppo//Desktop//train_imgs//"
     folder = None
     plt.axis('equal')
     

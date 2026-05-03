@@ -15,7 +15,6 @@ from model import initialize_linear_layers, init_complex_matrix, init_complexlin
 from model import init_rope, init_spectrally_coupled_rope, init_decay_per_head, init_linear_bias_slopes
 from model import ComplexLinearLayer, ComplexLinearHermitianLayer
 from model import ComplexRMSNorm
-from model import get_alibi_slopes
 
 # from model import apply_projection_mask
 
@@ -74,8 +73,8 @@ class MultiheadIsotropicRFA(nn.Module):
         
         ################################################
         # Define LTI params
-#         target_ss_process_var = 0.1 # Initial steady state process noise
-#         target_measurement_var = 1.0 # Initial measurement noise
+        target_ss_process_var = 0.1 # Initial steady state process noise
+        target_measurement_var = 1.0 # Initial measurement noise
         # Initialize the model as a conservative smoother.
         ##########################
         # Initialize omega
@@ -85,14 +84,12 @@ class MultiheadIsotropicRFA(nn.Module):
             dim_target_v = self.d_v_head
             
         if self.args.use_SC_RoPE == True:
-            omega_init_stacked_v, total_mu_v = init_spectrally_coupled_rope(self.n_heads, dim_target_v, b=self.args.damping, zero_frac=self.args.zero_frac)
+            omega_init_stacked_v, total_mu_v = init_spectrally_coupled_rope(self.n_heads, dim_target_v, b=self.args.damping)
         else:
-            _, total_mu_v = init_spectrally_coupled_rope(self.n_heads, dim_target_v, b=self.args.damping, zero_frac=self.args.zero_frac)
+            _, total_mu_v = init_spectrally_coupled_rope(self.n_heads, dim_target_v, b=self.args.damping)
             omega_init_stacked_v = init_rope(self.n_heads, dim_target_v)
         
-        self.omega_rescale = self.args.omega_rescale
-        
-#         omega_init_stacked_v = torch.randn(self.n_heads, dim_target_v) # Gaussian noise initialization of omega (not used)
+#         omega_init_stacked_v = torch.randn(self.n_heads, dim_target_v) # Gaussian noise initialize of omega (not used)
         
         if self.args.zero_rotations == True:
             omega_init_stacked_v = torch.zeros_like(omega_init_stacked_v)
@@ -103,7 +100,7 @@ class MultiheadIsotropicRFA(nn.Module):
 #         ##########################
         # Initialize decay
         if self.args.use_log_linear_decay == True and self.args.use_SC_RoPE == False:
-            total_mu_v = init_decay_per_head(self.n_heads, min_decay=0.01, max_decay=0.95, zero_frac=self.args.zero_frac)
+            total_mu_v = init_decay_per_head(self.n_heads, min_decay=0.01, max_decay=0.95, zero_frac=0.25)
        
         if self.args.learn_decay == True:
             self.mu_v = nn.Parameter(inv_sigmoid(total_mu_v))
@@ -113,20 +110,20 @@ class MultiheadIsotropicRFA(nn.Module):
         # Initialize noise params
         # This initialization creates a Low-Pass Filter effect at initialization.
         # The model will prefer to average across the history rather than reacting violently to every new token.
-        
-        initial_sigma_sq_v = 2 * total_mu_v.detach().clone() * self.args.target_ss_process_var + self.args.sigma_sq_v_floor # We initialize sigma^2 to a multiple of mu, to ensure that regardless of how fast a head decays, it starts with a consistent steady-state uncertainty.
+        initial_sigma_sq_v = 2 * total_mu_v.detach().clone() * target_ss_process_var # We initialize sigma^2 to a multiple of mu, to ensure that regardless of how fast a head decays, it starts with a consistent steady-state uncertainty.
         initial_sigma_sq_inverse_softplus_v = inv_softplus(initial_sigma_sq_v)
+        
         self.sigma_v = nn.Parameter(initial_sigma_sq_inverse_softplus_v)
-        self.sigma_tilde_v = nn.Parameter(torch.ones(self.n_heads) * self.args.target_ss_process_var)
-        self.eta_v = nn.Parameter(torch.ones(self.n_heads) * self.args.target_measurement_var)
-        self.gamma_v = nn.Parameter(torch.ones(self.n_heads) * self.args.target_measurement_var)
+        self.sigma_tilde_v = nn.Parameter(torch.ones(self.n_heads) * target_ss_process_var)
+        self.eta_v = nn.Parameter(torch.ones(self.n_heads) * target_measurement_var)
+        self.gamma_v = nn.Parameter(torch.ones(self.n_heads) * target_measurement_var)
 
         # It should actually be this, but we didn't realize util ablations were already running, so kept the above for consistency:
 #         self.noise_params_v = nn.ParameterDict({
 #             'sigma': nn.Parameter(initial_sigma_sq_inverse_softplus_v),
-#             'sigma_tilde': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_ss_process_var)),
-#             'eta': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_measurement_var)),
-#             'gamma': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_measurement_var))
+#             'sigma_tilde': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_ss_process_var)),
+#             'eta': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_measurement_var)),
+#             'gamma': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_measurement_var))
 # })
         ##########################
         if self.args.use_colored_prior:
@@ -152,9 +149,9 @@ class MultiheadIsotropicRFA(nn.Module):
                 dim_target_k = self.d_k_head
 
             if self.args.use_SC_RoPE == True:
-                omega_init_stacked_k, total_mu_k = init_spectrally_coupled_rope(self.n_heads, dim_target_k, b=self.args.damping, zero_frac=self.args.zero_frac)
+                omega_init_stacked_k, total_mu_k = init_spectrally_coupled_rope(self.n_heads, dim_target_k, b=self.args.damping)
             else:
-                _, total_mu_k = init_spectrally_coupled_rope(self.n_heads, dim_target_k, b=self.args.damping, zero_frac=self.args.zero_frac)
+                _, total_mu_k = init_spectrally_coupled_rope(self.n_heads, dim_target_k, b=self.args.damping)
                 omega_init_stacked_k = init_rope(self.n_heads, dim_target_k)
                 
             if self.args.zero_rotations == True:
@@ -167,7 +164,7 @@ class MultiheadIsotropicRFA(nn.Module):
 #             ##########################
             # Initialize decay
             if self.args.use_log_linear_decay == True and self.args.use_SC_RoPE == False:
-                total_mu_k = init_decay_per_head(self.n_heads, min_decay=0.01, max_decay=0.95, zero_frac=self.args.zero_frac)
+                total_mu_k = init_decay_per_head(self.n_heads, min_decay=0.01, max_decay=0.95, zero_frac=0.25)
                     
             if self.args.learn_decay == True:
                 self.mu_k = nn.Parameter(inv_sigmoid(total_mu_k))
@@ -175,31 +172,18 @@ class MultiheadIsotropicRFA(nn.Module):
                 self.register_buffer("mu_k", total_mu_k)
 #             ##########################
             # Initialize noise params
-    
-            if self.args.new_settings == True:
-                sigma_sq_k = 2 * total_mu_k.detach().clone() * self.args.target_ss_process_var
-                self.sigma_tilde_k = nn.Parameter(torch.ones(self.n_heads) * self.args.target_ss_process_var)
-                slopes = get_alibi_slopes(self.n_heads).view(-1)
-                slopes = torch.flip(slopes, dims=[0]) # Our ordering is reversed relative to alibi
-                eta_gamma_sq_k = sigma_sq_k / slopes
-                eta_sq_k = 0.5 * eta_gamma_sq_k
-                gamma_sq_k = 0.5 * eta_gamma_sq_k
-                self.sigma_k = nn.Parameter(inv_softplus(sigma_sq_k), requires_grad=False)
-                self.eta_k   = nn.Parameter(inv_softplus(eta_sq_k),   requires_grad=False)
-                self.gamma_k = nn.Parameter(inv_softplus(gamma_sq_k), requires_grad=False)
-            else:
-                initial_sigma_sq_k = 2 * total_mu_k.detach().clone() * self.args.target_ss_process_var
-                initial_sigma_sq_inverse_softplus_k = inv_softplus(initial_sigma_sq_k)
-                self.sigma_k = nn.Parameter(initial_sigma_sq_inverse_softplus_k)
-                self.sigma_tilde_k = nn.Parameter(torch.ones(self.n_heads) * self.args.target_ss_process_var)
-                self.eta_k = nn.Parameter(torch.ones(self.n_heads) * self.args.target_measurement_var)
-                self.gamma_k = nn.Parameter(torch.ones(self.n_heads) * self.args.target_measurement_var)
+            initial_sigma_sq_k = 2 * total_mu_k.detach().clone() * target_ss_process_var
+            initial_sigma_sq_inverse_softplus_k = inv_softplus(initial_sigma_sq_k)
+            self.sigma_k = nn.Parameter(initial_sigma_sq_inverse_softplus_k)
+            self.sigma_tilde_k = nn.Parameter(torch.ones(self.n_heads) * target_ss_process_var)
+            self.eta_k = nn.Parameter(torch.ones(self.n_heads) * target_measurement_var)
+            self.gamma_k = nn.Parameter(torch.ones(self.n_heads) * target_measurement_var)
 
 #             self.noise_params_k = nn.ParameterDict({
 #                 'sigma': nn.Parameter(initial_sigma_sq_inverse_softplus_k),
-#                 'sigma_tilde': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_ss_process_var)),
-#                 'eta': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_measurement_var)),
-#                 'gamma': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(self.args.target_measurement_var))
+#                 'sigma_tilde': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_ss_process_var)),
+#                 'eta': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_measurement_var)),
+#                 'gamma': nn.Parameter(torch.ones(self.n_heads) * inv_softplus(target_measurement_var))
 #     })
             ##########################
             if self.args.use_colored_prior == True:
@@ -289,8 +273,6 @@ class MultiheadIsotropicRFA(nn.Module):
             omega = omega.reshape(n_heads, 2 * d_half)
         else:
             omega = omega_raw
-            
-        omega = self.omega_rescale * omega # Rescale angular frequencies (allows us to interpolate between RoPE and ALiBi)
 
         # Compute clamped exponents for numerical stability in e^(mu * delta_t)
         mu_h = mu.view(1, 1, -1)
@@ -301,23 +283,12 @@ class MultiheadIsotropicRFA(nn.Module):
         Phi_tilde_plus, E_rel = compute_exp_kernel_isotropic(omega, t_measure, exp_rel_safe)
 
         # Extract 'D_k' (Diffusion-Kernel) components and constrain to be non-negative
+        sigma_sq = F.softplus(noise_params_raw['sigma']) # Process noise
+        # Steady state effective process noise (for learnable decay case)
+        sigma_tilde_sq = F.softplus(noise_params_raw.get('sigma_tilde', torch.zeros_like(sigma_sq)))
         eta_sq = F.softplus(noise_params_raw['eta']) + self.args.epsilon # Key-side measurement noise
         gamma_sq = F.softplus(noise_params_raw['gamma']) + self.args.epsilon # Query-side measurement noise
-        sigma_sq = F.softplus(noise_params_raw['sigma']) # Process noise
-        # Steady state effective process noise
-        sigma_tilde_sq = F.softplus(noise_params_raw.get('sigma_tilde', torch.zeros_like(sigma_sq)))
-        
-#         print(eta_sq - sigma_tilde_sq)
-        
-#         # Constrain low-decay heads to be diffusive (alpha < 0)
-#         total_time = self.args.seq_len - 1
-#         mu_L = mu_h * total_time
-#         mask = mu_L < 1.0
-#         sigma_tilde_sq = sigma_tilde_sq + mask * eta_sq
-        
-#         sigma_tilde_sq_floor = 0.05 # (?)
-#         sigma_tilde_sq = sigma_tilde_sq + self.args.sigma_tilde_sq_floor
-        
+
         # Zeroing logic for specific ablations
         if self.args.lambda_real_zero == True:
             mu = mu*0
