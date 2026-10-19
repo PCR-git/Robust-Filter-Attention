@@ -38,9 +38,11 @@ def single_epoch_lm(model, train_loader, history, optimizer, args, scheduler=Non
         if it % 100 == 0:
             pbar.set_postfix({"loss": f"{history['loss'][-1]:.4f}"})
 
-        if it % log_every == 0 and isinstance(output_dict, dict) and "mu_v" in output_dict:
+        # Backbone returns one info dict per block; the notebooks' RFATransformerNetwork only the last one
+        info = output_dict[-1] if isinstance(output_dict, list) else output_dict
+        if it % log_every == 0 and isinstance(info, dict) and "mu_v" in info:
             for key, hist_key in _RFA_LOG_KEYS.items():
-                history.setdefault(hist_key, []).append(output_dict[key].detach().cpu().numpy())
+                history.setdefault(hist_key, []).append(info[key].detach().cpu().numpy())
 
     return output_dict, history
 

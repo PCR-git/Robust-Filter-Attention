@@ -35,7 +35,7 @@ def test_qk_norm_mode():
 def test_removed_flags_raise():
     for flag, value in [("learn_t_shift", True), ("learn_decay", True), ("sep_params", True),
                         ("use_colored_prior", True), ("use_inner_residual", True),
-                        ("add_gaussian_noise", True), ("additive_bias_type", 2)]:
+                        ("add_gaussian_noise", True), ("additive_bias_type", 2), ("use_outer_residual", False)]:
         try:
             rfa_net({flag: value})
         except ValueError:
@@ -159,11 +159,11 @@ def test_chunked_loss_and_checkpointing_are_exact():
         lm.loss_chunk_size = 7  # several chunks, last one partial
         ref_loss, ref_grads = _lm_grads(lm, ids, use_loss_method=False)
         for ckpt in (False, True):
-            lm.backbone.args.grad_checkpointing = ckpt
+            lm.backbone.grad_checkpointing = ckpt
             loss, grads = _lm_grads(lm, ids, use_loss_method=True)
             assert torch.allclose(loss, ref_loss), (backbone, ckpt)
             assert all(torch.allclose(grads[n], ref_grads[n]) for n in ref_grads), (backbone, ckpt)
-        lm.backbone.args.grad_checkpointing = False
+        lm.backbone.grad_checkpointing = False
 
 
 def test_metadata_toggle_and_diagnostics():
@@ -177,6 +177,43 @@ def test_metadata_toggle_and_diagnostics():
     assert "attn_mat" not in meta
     print_layer_diagnostics(net)
     assert len(get_model_sde_snapshots(net)) == 2
+
+
+def _small_preset(name):
+    from training.presets import make_args as preset_args
+    return preset_args(name, d_e=32, d_k_total=32, d_v_total=32, n_heads=4, num_blocks=2)
+
+
+def test_typed_backbone_matches_notebook_classes():
+    """The presets' typed Backbone has the same parameters, init and outputs as the notebook constructors."""
+    import torch.nn as nn
+    from training.presets import build_backbone
+    for preset in ("M2", "M3", "B1", "B2", "B4"):
+        args = _small_preset(preset)
+        torch.manual_seed(0)
+        typed = build_backbone(args)
+        torch.manual_seed(0)
+        if preset.startswith("B"):
+            old = TransformerNetwork(32, 64, 128, 4, args, num_blocks=2, Norm=nn.LayerNorm)
+        else:
+            old = RFATransformerNetwork(args, num_blocks=2, n_heads=4, input_dim=32, query_key_dim_total=32,
+                                        value_dim_total=32, hidden_dim=128, Norm=nn.LayerNorm)
+        sd_typed, sd_old = typed.state_dict(), old.state_dict()
+        assert list(sd_typed) == list(sd_old), preset
+        assert all(torch.equal(sd_typed[k], sd_old[k]) for k in sd_old), preset
+        x = torch.randn(2, 10, 32)
+        out_typed, infos = typed(x)
+        out_old, _ = old(x)
+        assert torch.equal(out_typed, out_old) and len(infos) == 2, preset
+
+
+def test_backbone_metadata_per_block():
+    from training.presets import build_backbone
+    net = build_backbone(_small_preset("M2")).eval()
+    _, infos = net(torch.randn(1, 10, 32), return_metadata=True)
+    assert [info["attn_mat"].shape for info in infos] == [(1, 10, 10, 4)] * 2
+    _, infos = net(torch.randn(1, 10, 32))
+    assert "attn_mat" not in infos[0] and "mu_v" in infos[0]
 
 
 def test_rfa_block():
@@ -213,15 +250,17 @@ def test_compiled_matches_eager():
         print("  (no GPU, skipped)")
         return
     import copy
-    torch.manual_seed(0)
-    eager = LanguageModel(rfa_net(), vocab_size=100, embed_dim=32).cuda()
-    comp = copy.deepcopy(eager)
-    comp.backbone.compile()
-    ids = torch.randint(0, 100, (2, 64), device="cuda")
-    (le, ge), (lc, gc) = _lm_grads(eager, ids, True), _lm_grads(comp, ids, True)
-    assert torch.allclose(le, lc, rtol=1e-4)
-    assert all((ge[n] - gc[n]).norm() <= 1e-2 * ge[n].norm() + 1e-6 for n in ge)
-    assert list(comp.state_dict()) == list(eager.state_dict())
+    from training.presets import build_backbone
+    for make_net in (rfa_net, lambda: build_backbone(_small_preset("M2"))):  # notebook class, typed preset backbone
+        torch.manual_seed(0)
+        eager = LanguageModel(make_net(), vocab_size=100, embed_dim=32).cuda()
+        comp = copy.deepcopy(eager)
+        comp.backbone.compile()
+        ids = torch.randint(0, 100, (2, 64), device="cuda")
+        (le, ge), (lc, gc) = _lm_grads(eager, ids, True), _lm_grads(comp, ids, True)
+        assert torch.allclose(le, lc, rtol=1e-4)
+        assert all((ge[n] - gc[n]).norm() <= 1e-2 * ge[n].norm() + 1e-6 for n in ge)
+        assert list(comp.state_dict()) == list(eager.state_dict())
 
 
 def test_gpu_paper_size():
