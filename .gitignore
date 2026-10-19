@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data, caches and training outputs (large; not versioned)
+datasets/
+hf_cache/
+gpt2_tokenizer/
+saved_models/
+*.pt
+!tests/golden/*.pt
+
+# LaTeX build files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+
+# Local Claude Code settings
+.claude/settings.local.json

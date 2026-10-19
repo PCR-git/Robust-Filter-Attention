@@ -10,7 +10,7 @@ plt.rc('font', size=20)
 ##########################################################################################
 ##########################################################################################
 
-def single_epoch_rfa_dynamics(model, train_loader, history, optimizer, criterion, params_list, args, t_equal=True, t_shift=None, causal=True, scheduler=None):
+def single_epoch_rfa_dynamics(model, train_loader, history, optimizer, criterion, params_list, args, t_equal=True, causal=True, scheduler=None):
     """
     Single epoch of training
     """
@@ -28,7 +28,7 @@ def single_epoch_rfa_dynamics(model, train_loader, history, optimizer, criterion
         
 #         with torch.autograd.set_detect_anomaly(True):
         
-        out, output_dict = model(inputs, t_measure=t_measure, t_shift=t_shift, causal=causal) # Forward pass of model
+        out, output_dict = model(inputs, t_measure=t_measure, causal=causal) # Forward pass of model
 
         loss = criterion(out, target) # Compute loss
         
@@ -73,11 +73,6 @@ def single_epoch_rfa_dynamics(model, train_loader, history, optimizer, criterion
         history['tau'].append(output_dict['tau'].detach().cpu().numpy())
         history['nu_over_d'].append(output_dict['nu_over_d'].detach().cpu().numpy())
         
-        # Capture a summary of the gate
-        if output_dict['gate'] is not None:
-            # Store mean gate value per head for this iteration
-            history['gs_mean'].append(output_dict['gate'].mean(axis=0).detach().cpu().numpy())
-
     return output_dict, history
 
 ##########################################################################################

@@ -1,0 +1,9 @@
+# Versions tested (conda env "ai", Python 3.11, CUDA 12.8)
+torch==2.11.0
+numpy==2.4.4
+scipy==1.17.1        # notebooks
+matplotlib==3.10.9
+tqdm==4.67.3
+transformers==5.8.1
+datasets==2.19.2
+triton-windows>=3.7,<3.8; sys_platform == "win32"   # for --compile (torch 2.11); Linux torch wheels include Triton

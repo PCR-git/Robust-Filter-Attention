@@ -9,8 +9,7 @@ plt.rc('font', size=20)
 
 from utils import complex_matmul
 
-# from model import compute_lambda
-from model import ComplexLinearLayer, RFATransformerBlock
+from model import RFATransformerBlock
 from model import MultiheadIsotropicRFA
 from model import RFA_Block
 from model import RFATransformerNetwork
@@ -51,12 +50,10 @@ def compute_state_matrix(module,Pu,Pd,R1,R1i,args):
     """
 
     with torch.no_grad():
-        # Get stable eigenvalues
-        mu_v, omega_v = compute_lambda(module.mu_v, module.omega_v, args)
-        mu_v_expanded = mu_v.unsqueeze(-1).expand(-1, int(omega_v.size()[-1]/2))
-        mu_v_vec = mu_v_expanded.repeat_interleave(2, dim=1)
-
-        lambda_model = torch.stack([-mu_v_vec.flatten(), omega_v.flatten()], dim=0)
+        # Get eigenvalues lambda = -mu + i*omega, one per complex feature: [2, H*head_dim]
+        p = module.sde_params()
+        mu_v_vec = p["mu"][:, None].expand_as(p["omega"])
+        lambda_model = torch.stack([-mu_v_vec.flatten(), p["omega"].flatten()], dim=0)
 
         # Construct Diagonal Lambda Matrix DD: [2, d_v_total, d_v_total]
         DD = torch.stack((
@@ -122,7 +119,7 @@ def plot_state_matrix(A,marker,size=32,color=None):
 ##########################################################################################
 
 def visualize_results(model, train_dataset, history, 
-                      R1, R1i, Pu, Pd, A, epoch, folder, args, t_equal=True, t_shift=None, causal=True,
+                      R1, R1i, Pu, Pd, A, epoch, folder, args, t_equal=True, causal=True,
                       plot_losses_flag=False, plot_log_losses_flag=True, plot_traj_flag=True,
                       plot_pulled_forward_estimates_flag=True, plot_last_attn_mat_flag=False,
                       plot_total_precision_flag=False, plot_attn_prior_flag=False, plot_eigenvals_flag=True,
@@ -179,7 +176,7 @@ def visualize_results(model, train_dataset, history,
 
         # Forward pass of model
 #         out, output_dict = model.forward(inputs)
-        out, output_dict = model(inputs.unsqueeze(0), t_measure=t_measure, t_shift=t_shift, causal=causal)
+        out, output_dict = model(inputs.unsqueeze(0), t_measure=t_measure, causal=causal)
         
         # Get output metadata
         est = output_dict['est_latent']
@@ -257,7 +254,7 @@ def visualize_results(model, train_dataset, history,
         #########################################
         
         # Plot pulled-forward estimates
-        if args.compute_metadata and plot_pulled_forward_estimates_flag:
+        if args.compute_metadata and plot_pulled_forward_estimates_flag and x_hat is not None:
             
             x_hat = torch.stack((x_hat, torch.zeros_like(x_hat)),dim=1) # Add zero imaginary part
             

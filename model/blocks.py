@@ -2,10 +2,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from model import resolve_multihead_dims
-from model import init_complexlinear, init_complex_matrix
-from model import ComplexLinearLayer, MultiHeadAttentionLayer, SpectralCoupledHeuristicAttention
-from model import ComplexRMSNorm, MultiheadIsotropicRFA
+from rfa import RFAConfig, MultiheadIsotropicRFA
+from .model_utils import resolve_multihead_dims
+from .layers import MultiHeadAttentionLayer
 
 ##########################################################################################
 ##########################################################################################
@@ -19,21 +18,14 @@ class SelfAttentionBlock(nn.Module):
     def __init__(self, input_dim, qkv_dim, num_heads, args):
         super(SelfAttentionBlock, self).__init__()
 
-#         self.attn = MultiHeadAttentionLayer(input_dim, qkv_dim, num_heads, args)
-        
-        # --- Self-attention layer selection ---
-        # Logic for ablations (RoPE + Decay) and (SCRoPE + Decay)
-        if args.use_relative_decay_vanilla == True:
-            self.attn = SpectralCoupledHeuristicAttention(input_dim, qkv_dim, num_heads, args)
-        # Standard Baseline logic (B1, B2)
-        else:
-            self.attn = MultiHeadAttentionLayer(input_dim, qkv_dim, num_heads, args)
+        # Baseline attention (B1-B4, selected by the args flags)
+        self.attn = MultiHeadAttentionLayer.from_args(input_dim, qkv_dim, num_heads, args)
 
-    def forward(self, x, t_measure=None, t_shift=None, causal=True):
+    def forward(self, x, t_measure=None, causal=True):
         """
         Forward pass directly into the attention layer.
         """
-        # We accept t_measure/t_shift as dummy variables to match RFA API
+        # We accept t_measure as a dummy variable to match the RFA API
         # but we ONLY use causal for the actual baseline attention logic.
         
         # We pass x as Q, K, and V for self-attention
@@ -44,24 +36,32 @@ class SelfAttentionBlock(nn.Module):
 ##########################################################################################
 ##########################################################################################
 
+def build_rfa_layer(args, n_heads, input_dim, query_key_dim=None, value_dim=None, query_key_dim_total=None, value_dim_total=None):
+    """Build a MultiheadIsotropicRFA layer from notebook-style `args` and head dimensions."""
+    if query_key_dim is None or value_dim is None:
+        query_key_dim, value_dim, _, _ = resolve_multihead_dims(n_heads, query_key_dim, value_dim, query_key_dim_total, value_dim_total)
+    if query_key_dim != value_dim:
+        raise ValueError(f"RFA requires equal query/key and value head dims, got {query_key_dim} and {value_dim}")
+    config = RFAConfig.from_args(args, d_model=input_dim, n_heads=n_heads, head_dim=query_key_dim)
+    return MultiheadIsotropicRFA(config)
+
+##########################################################################################
+##########################################################################################
+
 class RFA_Block(nn.Module):
     """
-    Neural network with a single multihead simplified precision attention block
+    A single multi-head RFA layer, without residuals, norms or FFN.
     """
 
-    # Initialize the network and specify input/output dimensions:
     def __init__(self, args, n_heads, input_dim, query_key_dim=None, value_dim=None, query_key_dim_total=None, value_dim_total=None):
         super(RFA_Block, self).__init__()
+        # (ModuleList kept so that checkpoint keys stay 'layers.0.*')
+        self.layers = nn.ModuleList([build_rfa_layer(args, n_heads, input_dim, query_key_dim, value_dim, query_key_dim_total, value_dim_total)])
+        self.args = args
 
-        self.layers = nn.ModuleList([MultiheadIsotropicRFA(args, n_heads, input_dim, query_key_dim, value_dim, query_key_dim_total, value_dim_total)])
-
-     # Build the network:
-    def forward(self, inputs, t_measure=None, t_shift=None, causal=True):
-        
-        layer = self.layers[0]
-        out, output_dict = layer(inputs, inputs, inputs, t_measure, t_shift=t_shift, causal=causal)
-
-        return out, output_dict
+    def forward(self, inputs, t_measure=None, causal=True):
+        return_metadata = not self.training and getattr(self.args, "compute_metadata", False)
+        return self.layers[0](inputs, t_measure=t_measure, causal=causal, return_metadata=return_metadata)
 
 ##########################################################################################
 ##########################################################################################
@@ -83,16 +83,8 @@ class TransformerBlock(nn.Module):
         """
         super(TransformerBlock, self).__init__()
 
-#         # Self-attention layer
-#         self.attn = MultiHeadAttentionLayer(input_dim, qkv_dim, num_heads, args)
-        
-        # --- Self-attention layer selection ---
-        # Logic for ablations (RoPE + Decay) and (SCRoPE + Decay)
-        if args.use_relative_decay_vanilla == True:
-            self.attn = SpectralCoupledHeuristicAttention(input_dim, qkv_dim, num_heads, args)
-        # Standard Baseline logic (B1, B2)
-        else:
-            self.attn = MultiHeadAttentionLayer(input_dim, qkv_dim, num_heads, args)
+        # Baseline attention (B1-B4, selected by the args flags)
+        self.attn = MultiHeadAttentionLayer.from_args(input_dim, qkv_dim, num_heads, args)
         
         # Layer norms before attention and MLP
         if Norm == None:
@@ -148,84 +140,6 @@ class TransformerBlock(nn.Module):
         return out, attn_weights
 
 ##########################################################################################
-##########################################################################################
-
-# class ComplexTransformerBlock(nn.Module):
-#     """
-#     Custom transformer block using vanilla attention, with residual connections,
-#     layer normalization, and a feedforward network.
-#     """
-
-#     def __init__(self, input_dim, qkv_dim, hidden_dim, num_heads, args, Norm=ComplexRMSNorm):
-#         """
-#         Initializes a single transformer block.
-
-#         Args:
-#             input_dim (int): Dimensionality of input and output.
-#             hidden_dim (int): Dimensionality of the hidden feedforward layer.
-#             args: Additional parameters passed to the AttentionLayer.
-#         """
-#         super(ComplexTransformerBlock, self).__init__()
-
-#         # Self-attention layer
-#         self.attn = ComplexMultiHeadAttentionLayer(input_dim, qkv_dim, num_heads, args)
-        
-#         # Layer norms before attention and MLP
-#         if Norm == None:
-#             self.norm1 = self.norm2 = None
-#         else:
-#             self.norm1 = Norm(input_dim)
-#             self.norm2 = Norm(input_dim)
-
-#         # Feedforward network: Linear -> ReLU -> Linear
-#         self.ffn = nn.Sequential(
-#             nn.Linear(input_dim, hidden_dim),
-#             nn.ReLU(),
-#             nn.Linear(hidden_dim, input_dim)
-#         )
-        
-#         self.g_param = nn.Parameter(torch.zeros(input_dim))
-
-#     def forward(self, x):
-#         """
-#         Forward pass through the transformer block.
-
-#         Args:
-#             x (torch.Tensor): Input tensor of shape (batch_size, seq_len, input_dim)
-
-#         Returns:
-#             out (torch.Tensor): Output tensor of the same shape as input.
-#             attn (torch.Tensor): Attention weights.
-#         """
-        
-#         # === Self-attention block ===
-        
-#         # Layer norm before attention (pre-norm)
-#         if self.norm1 == None:
-#             x_norm = x
-#         else:
-#             x_norm = self.norm1(x)
-
-#         # Self-attention with residual connection
-#         attn_out, attn_weights = self.attn(x_norm, x_norm, x_norm)
-#         x = x + attn_out  # Residual connection
-        
-# #         eta = torch.sigmoid(self.g_param)
-# #         x = (1 - eta) * x + eta * attn_out
-
-#         # Layer norm before feedforward network
-#         if self.norm2 == None:
-#             x_norm = x
-#         else:
-#             x_norm = self.norm2(x)
-
-#         # Feedforward network with residual connection
-#         ffn_out = self.ffn(x_norm)
-#         out = x + ffn_out  # Residual connection
-
-#         return out, attn_weights
-    
-##########################################################################################
 ##########################################################################################    
 
 class RFATransformerBlock(nn.Module):
@@ -243,13 +157,9 @@ class RFATransformerBlock(nn.Module):
             args: Additional parameters passed to the AttentionLayer.
         """
         super(RFATransformerBlock, self).__init__()
-        
-        if query_key_dim==None or value_dim==None or query_key_dim_total==None or value_dim_total==None:
-            # Set query_key and value dims, depending on whether user provided total dims, or head dims
-            query_key_dim, value_dim, query_key_dim_total, value_dim_total = resolve_multihead_dims(n_heads, query_key_dim, value_dim, query_key_dim_total, value_dim_total)
 
         # Self-attention layer
-        self.attn = MultiheadIsotropicRFA(args, n_heads, input_dim, query_key_dim, value_dim, query_key_dim_total, value_dim_total)
+        self.attn = build_rfa_layer(args, n_heads, input_dim, query_key_dim, value_dim, query_key_dim_total, value_dim_total)
 
         # Layer norms before attention and MLP
         if Norm == None:
@@ -267,41 +177,29 @@ class RFATransformerBlock(nn.Module):
         
         self.args = args
 
-    def forward(self, x, t_measure=None, t_shift=None, causal=True):
+    def forward(self, x, t_measure=None, causal=True, return_metadata=False):
         """
         Forward pass through the RFA transformer block.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, 1, seq_len, input_dim)
+            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, input_dim)
 
         Returns:
             out (torch.Tensor): Output tensor of the same shape as input.
-            attn (torch.Tensor): Attention weights.
+            output_dict (dict): Per-head SDE parameters and, if return_metadata, diagnostics.
         """
-        
-#         x_mag = torch.sqrt(torch.sum(x**2,axis=-1,keepdims=True))
 
         # Norm before attention (pre-norm)
-        if self.args.use_real_input_norm == True:
-            x_norm = self.norm1(x)
-        else:
-            x_norm = x
+        x_norm = self.norm1(x) if self.args.use_real_input_norm else x
 
         # Self-attention with residual connection
-        attn_out, output_dict = self.attn(x_norm, x_norm, x_norm, t_measure, t_shift=t_shift, causal=causal)
-        
-        if self.args.use_outer_residual == True:
+        attn_out, output_dict = self.attn(x_norm, t_measure=t_measure, causal=causal, return_metadata=return_metadata)
+        if self.args.use_outer_residual:
             x = x + attn_out
-        else:
-            pass
 
-        if self.args.use_real_output_norm == True:
-            x_norm = self.norm2(x)
-        else:
-            x_norm = x
-            
+        x_norm = self.norm2(x) if self.args.use_real_output_norm else x
+
         ffn_out = self.ffn(x_norm) # Feedforward network with residual connection
         out = x + ffn_out  # Residual connection
 
         return out, output_dict
-    
