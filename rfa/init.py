@@ -2,7 +2,6 @@
 
 import numpy as np
 import torch
-import torch.nn as nn
 
 
 def inv_softplus(x):

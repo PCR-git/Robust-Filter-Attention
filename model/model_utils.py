@@ -2,7 +2,6 @@ import torch
 from tqdm import tqdm
 
 from rfa import MultiheadIsotropicRFA
-from rfa.init import inv_softplus
 
 ##########################################################################################
 ##########################################################################################

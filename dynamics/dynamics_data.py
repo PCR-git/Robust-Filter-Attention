@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 from torch.utils.data import Dataset, DataLoader
 
-from utils import complex_matmul
 from dynamics import simulate_stochastic_LTI
 from dynamics import get_nth_measurement, get_random_measurements
 
@@ -89,21 +88,6 @@ class TrainDataset_dynamics(Dataset):
     def __len__(self):
         return self.Train_Data.size(0)
 
-#     def __getitem__(self, idx):
-#         # Slice the Data: Inputs (0 to N-1) and Targets (1 to N)
-#         # This handles the autoregressive "next-step" requirement
-#         x = self.Train_Data[idx, :-1]
-#         y = self.Train_Data[idx, 1:]
-        
-#         t_measure = self.t_measure_all[idx]
-#         t_in = t_measure[:-1]
-
-#         # Optional: keep X_true for evaluation metrics
-#         x_true = self.X_true_all[idx]
-#         x_measure = self.X_measure_all[idx]
-        
-#         return x, y, x_true, x_measure, t_in
-    
     def __getitem__(self, idx):
         t_measure = self.t_measure_all[idx]
         
@@ -114,30 +98,6 @@ class TrainDataset_dynamics(Dataset):
 
         return x, y, self.X_true_all[idx], self.X_measure_all[idx], t_in
 
-#     def __getitem__(self, idx):
-#         t_measure = self.t_measure_all[idx]
-        
-#         if self.task_type == 'autoregressive':
-#             # Standard "Shift-by-K" logic (Overlap)
-#             x = self.Train_Data[idx, :-self.k_step]
-#             y = self.Train_Data[idx, self.k_step:]
-#             t_in = t_measure[:-self.k_step]
-            
-#         elif self.task_type == 'seq2seq':
-#             # ETT Logic: Non-overlapping blocks
-#             # x is the 'Look-back' window
-#             x = self.Train_Data[idx, :self.lookback]
-#             # y is the 'Forecast' window (starts exactly where x ends)
-#             y = self.Train_Data[idx, self.lookback : self.lookback + self.forecast]
-            
-#             t_in = t_measure[:self.lookback]
-            
-#             # PHYSICAL KEY: For Seq2Seq, we calculate the dt from the LAST 
-#             # point of the look-back to each point in the forecast.
-#             t_last_obs = t_measure[self.lookback - 1]
-#             t_forecast = t_measure[self.lookback : self.lookback + self.forecast]
-    
-        return x, y, self.X_true_all[idx], self.X_measure_all[idx], t_in
     
 ##########################################################################################
 ##########################################################################################

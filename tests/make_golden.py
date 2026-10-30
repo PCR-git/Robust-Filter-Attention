@@ -17,9 +17,7 @@ Configs that crash in the original code are recorded with their error message.
 
 import os
 import sys
-import copy
 import traceback
-from argparse import Namespace
 
 import torch
 

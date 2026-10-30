@@ -7,7 +7,6 @@ Layout conventions:
 """
 
 import torch
-import torch.nn.functional as F
 
 
 def rotate(x, cos, sin):

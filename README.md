@@ -161,7 +161,8 @@ python figures/attention_maps.py     # last-layer attention at L = 4096 (B1, B2,
 python figures/parameter_traces.py   # per-head noise, robustness, temperature over training -> images/Noise_params_m*/
 ```
 
-Not scripted: the illustrations in `images/explanations/` (theory figures), and the diffusive-to-integrative
+Not scripted: the paper's theory illustrations (the notebooks in `visualization/` hold related plotting
+code), and the diffusive-to-integrative
 transition figure, which comes from an M2 variant initialized in the diffusive regime that is not a preset.
 
 The notebooks (`Main - *.ipynb`, `Test LMs.ipynb`) are the original research notebooks, kept for
