@@ -1,5 +1,8 @@
 # Robust Filter Attention (RFA)
 
+Code for *Robust Filter Attention: Self-Attention as Precision-Weighted State Estimation*
+(Peter Racioppo, ICML 2026).
+
 Robust Filter Attention (RFA) is an attention mechanism for sequence modeling under stochastic dynamics. It integrates a learnable linear time-invariant (LTI) state-space model directly into attention, enabling noise-aware aggregation and principled temporal propagation of information.
 
 Rather than comparing queries and keys directly, RFA evolves past representations forward under learned dynamics and
@@ -34,13 +37,29 @@ robust_filter_attention/
 │   └── compat.py             #   args-based constructors used by the paper notebooks
 ├── training/                 # Training loops, LM datasets, named model presets (presets.py)
 ├── train_lm.py               # Language-model training script
+├── eval_extrapolation.py     # Test perplexity at context lengths beyond training (Table 1)
 ├── visualization/            # Attention and trajectory visualizations
 ├── dynamics/                 # Dynamical system simulators for testing
 ├── utils/                    # Misc utilities
+├── images/other_imgs/make_figures.py  # Validation and extrapolation figures from finished runs
+├── *.ipynb                   # Research notebooks (see "Reproducing the paper")
 └── tests/                    # Regression and smoke tests
 ```
 
 Note: This repository contains the research codebase used for the experiments and ablations in the paper.
+
+## Installation
+
+Python 3.11 and PyTorch 2.11 (CUDA 12.8) were used for the paper; `requirements.txt` pins the exact versions.
+
+```
+pip install -r requirements.txt   # exact versions used for the paper
+pip install -e .                  # makes rfa, model, training, ... importable from other projects
+```
+
+`pip install -e .` installs the code in place, so `import rfa` works from any folder while edits to
+this repository take effect immediately. `pip install -e ".[compile]"` adds Triton for `--compile`
+on Windows; `".[notebooks]"` adds Jupyter and SciPy.
 
 ## Using the RFA layer
 
@@ -124,6 +143,45 @@ models, ablations and baselines. `check_regression.py` checks that initializatio
 outputs, all gradients and diagnostic outputs are unchanged, except for the intentional
 changes listed in `tests/adapter.py` (M2.4, and B1/B3/B4 because of the RoPE fix).
 
+## Reproducing the paper
+
+The language-model results come from the scripts above, not the notebooks:
+
+```
+python train_lm.py --dataset wikitext103 --preset M2 --compile                # one run per preset (5-8 h each on one GPU)
+python eval_extrapolation.py --dataset wikitext103 runs/wikitext103/M2__<date>  # perplexity at L = 512 ... 4096 (several run dirs allowed)
+python images/other_imgs/make_figures.py                                      # validation and extrapolation figures
+```
+
+The notebooks (`Main - *.ipynb`, `Test LMs.ipynb`) are the original research notebooks, kept for
+reference. Their cells were run selectively rather than top to bottom, so running a whole notebook
+at once may fail.
+
 ## Data
 
-Training on Wikitext-103 or BabyLM 2025 requires (a) downloading these datasets and placing them in ./datasets and (b) downloading the GPT2 Tokenizer to ./gpt2_tokenizer. The model can be easily tested using Main - Dynamics Training, which generates its own synthetic data (a simulation of a simple LTI system).
+Training data goes in `./datasets` (or `--data-dir`), and the GPT-2 tokenizer in `./gpt2_tokenizer`:
+
+```
+datasets/wikitext-103/{train,validation,test}-*.parquet   # WikiText-103 (wikitext-103-v1, Hugging Face Salesforce/wikitext)
+datasets/BabyLM_2025/{train_100M,dev,test}/*.{train,dev,test}   # BabyLM 2025, 100M-word corpus
+```
+
+The tokenizer can be saved with
+`python -c "from transformers import GPT2TokenizerFast as T; T.from_pretrained('gpt2').save_pretrained('gpt2_tokenizer')"`.
+The model can also be tried without any download in `Main - Dynamics Training.ipynb`, which generates its
+own synthetic data (a simulation of a simple LTI system).
+
+## License
+
+MIT (see `LICENSE`).
+
+## Citation
+
+```bibtex
+@inproceedings{racioppo2026rfa,
+  title     = {Robust Filter Attention: Self-Attention as Precision-Weighted State Estimation},
+  author    = {Racioppo, Peter},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning (ICML)},
+  year      = {2026}
+}
+```
