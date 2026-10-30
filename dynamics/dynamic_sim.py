@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from utils import complex_matmul
+from rfa.utils import complex_matmul
 
 ##########################################################################################
 ##########################################################################################

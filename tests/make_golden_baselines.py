@@ -19,7 +19,7 @@ BASELINES = {  # args overrides as in the training notebook
 }
 
 def build(overrides):
-    from model import TransformerNetwork
+    from rfa.model import TransformerNetwork
     return TransformerNetwork(D, 2 * D, 4 * D, H, make_args(overrides), num_blocks=2, Norm=nn.LayerNorm)
 
 def run(model, x, w):

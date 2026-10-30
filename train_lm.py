@@ -6,7 +6,7 @@ Train a language model (RFA or baseline) on WikiText-103 or BabyLM-2025.
     python train_lm.py --dataset wikitext103 --preset M2 --set damping=0.5     # override any args field
     python train_lm.py --dataset wikitext103 --preset M3 --resume runs/wikitext103/.../resume.pt
 
-Presets are defined in training/presets.py. Each run writes to <out-dir>/<dataset>/<name>__<date>/
+Presets are defined in rfa/training/presets.py. Each run writes to <out-dir>/<dataset>/<name>__<date>/
 (<name> defaults to <backbone>__<preset>):
     lm_epoch_N.pt   model weights after epoch N (the two most recent epochs; ~77 MB each)
     resume.pt       weights + optimizer/scheduler state of the latest epoch (deleted when the run finishes)
@@ -27,10 +27,10 @@ import matplotlib
 matplotlib.use("Agg")
 import torch
 
-from training import single_epoch_lm, evaluate_lm
-from training.lm_data import DATASETS, load_tokenizer, load_lm_datasets, make_dataloaders
-from training.presets import PRESETS, make_args, build_language_model
-from utils import count_parameters, seed_everything
+from rfa.training import single_epoch_lm, evaluate_lm
+from rfa.training.lm_data import DATASETS, load_tokenizer, load_lm_datasets, make_dataloaders
+from rfa.training.presets import PRESETS, make_args, build_language_model
+from rfa.utils import count_parameters, seed_everything
 from visualization import plot_training_progress_lm
 
 

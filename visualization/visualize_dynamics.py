@@ -7,9 +7,9 @@ import matplotlib.cm as cm
 plt.rcParams['figure.figsize'] = [10, 10]
 plt.rc('font', size=20)
 
-from utils import complex_matmul
+from rfa.utils import complex_matmul
 
-from model import MultiheadIsotropicRFA
+from rfa.model import MultiheadIsotropicRFA
 
 ##########################################################################################
 ##########################################################################################

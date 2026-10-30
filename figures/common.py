@@ -11,7 +11,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from eval_extrapolation import latest_checkpoint  # noqa: E402
-from training.presets import build_language_model  # noqa: E402
+from rfa.training.presets import build_language_model  # noqa: E402
 
 RUNS = os.environ.get("RFA_RUNS_DIR", os.path.join(REPO, "runs"))
 IMAGES = os.path.join(REPO, "images")

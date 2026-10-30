@@ -21,7 +21,7 @@ from matplotlib.colors import PowerNorm
 
 from common import IMAGES, REPO, latest_run, load_model
 from eval_extrapolation import test_blocks
-from training.lm_data import load_tokenizer
+from rfa.training.lm_data import load_tokenizer
 
 FILE_NAMES = {"M2": "M2_b0.05"}  # names used by the paper's \includegraphics
 L = 4096

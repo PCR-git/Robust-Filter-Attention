@@ -97,8 +97,8 @@ def is_baseline(args):
 
 def backbone_config(args):
     """Typed BackboneConfig of the model described by `args` (paper layout: LayerNorm, FFN width 4 d)."""
-    from model import BackboneConfig
-    from model.compat import attention_config_from_args, rfa_config_from_args, rfa_backbone_config
+    from rfa.model import BackboneConfig
+    from rfa.model.compat import attention_config_from_args, rfa_config_from_args, rfa_backbone_config
     if is_baseline(args):
         attention = attention_config_from_args(args, args.d_e, args.n_heads, 2 * args.d_e)
         return BackboneConfig(attention=attention, n_blocks=args.num_blocks, ffn_dim=4 * args.d_e, norm="layer",
@@ -109,12 +109,12 @@ def backbone_config(args):
 
 
 def build_backbone(args):
-    from model import Backbone
+    from rfa.model import Backbone
     return Backbone(backbone_config(args), grad_checkpointing=args.grad_checkpointing)
 
 
 def build_language_model(args, embed_init_std=None):
     """embed_init_std=None is the published runs' N(0, 1) embedding init; 0.02 is the usual choice."""
-    from model import LanguageModel
+    from rfa.model import LanguageModel
     return LanguageModel(build_backbone(args), vocab_size=args.vocab_size, embed_dim=args.d_e,
                          embed_init_std=embed_init_std)

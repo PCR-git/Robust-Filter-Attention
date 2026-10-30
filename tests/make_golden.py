@@ -30,7 +30,7 @@ GOLDEN_PATH = os.path.join(REPO, "tests", "golden", "golden.pt")
 
 
 def build_network(args):
-    from model import RFATransformerNetwork
+    from rfa.model import RFATransformerNetwork
     return RFATransformerNetwork(
         args, num_blocks=N_BLOCKS, n_heads=N_HEADS, input_dim=D_E,
         query_key_dim_total=args.d_k_total, value_dim_total=args.d_v_total, hidden_dim=HIDDEN,

@@ -25,4 +25,5 @@ notebooks = ["scipy", "jupyter"]
 compile = ['triton-windows>=3.7,<3.8; sys_platform == "win32"']  # torch.compile on Windows; Linux torch wheels include Triton
 
 [tool.setuptools]
-packages = { find = { include = ["rfa*", "model*", "training*", "utils*", "visualization*", "dynamics*"] } }
+# Only rfa (with rfa.model, rfa.training, rfa.utils) is installed; dynamics/ and visualization/ serve the notebooks.
+packages = { find = { include = ["rfa*"] } }

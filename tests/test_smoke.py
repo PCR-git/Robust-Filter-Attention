@@ -14,7 +14,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from tests.configs import make_args, M2
-from model import (RFATransformerNetwork, TransformerNetwork, LanguageModel, RFA_Block,
+from rfa.model import (RFATransformerNetwork, TransformerNetwork, LanguageModel, RFA_Block,
                    print_layer_diagnostics, get_model_sde_snapshots)
 from rfa import RFAConfig, MultiheadIsotropicRFA
 
@@ -64,8 +64,8 @@ def test_no_value_rotation_ablation():
 def test_m28_is_rotary_attention():
     """Preset M2.8 (M2.6 without value rotation) equals plain rotary dot-product attention."""
     import math
-    from training.presets import make_args as preset_args
-    from model import build_rfa_layer
+    from rfa.training.presets import make_args as preset_args
+    from rfa.model import build_rfa_layer
     from rfa.kernels import rotate, rotation_angles
     for spectral in (True, False):
         torch.manual_seed(0)
@@ -101,8 +101,8 @@ def test_m28_is_rotary_attention():
 def test_m27_is_rotary_attention_plus_log_bias():
     """Preset M2.7 equals SC rotary dot-product attention plus the additive bias -log Sigma(dt)."""
     import math
-    from training.presets import make_args as preset_args
-    from model import build_rfa_layer
+    from rfa.training.presets import make_args as preset_args
+    from rfa.model import build_rfa_layer
     from rfa.kernels import rotate, rotation_angles
     torch.manual_seed(0)
     args = preset_args("M2.7", d_e=32, d_k_total=32, d_v_total=32, n_heads=4)
@@ -137,7 +137,7 @@ def test_m27_is_rotary_attention_plus_log_bias():
 
 def test_rope_is_relative_rotation():
     """RoPE/SC-RoPE preserve norms, and q.k scores depend only on the position offset."""
-    from model import RoPE, SCRoPE
+    from rfa.model import RoPE, SCRoPE
     torch.manual_seed(0)
     H, D, L = 4, 8, 64
     q, k = torch.randn(1, 1, H, D, dtype=torch.float64), torch.randn(1, 1, H, D, dtype=torch.float64)
@@ -217,14 +217,14 @@ def test_metadata_toggle_and_diagnostics():
 
 
 def _small_preset(name):
-    from training.presets import make_args as preset_args
+    from rfa.training.presets import make_args as preset_args
     return preset_args(name, d_e=32, d_k_total=32, d_v_total=32, n_heads=4, num_blocks=2)
 
 
 def test_typed_backbone_matches_notebook_classes():
     """The presets' typed Backbone has the same parameters, init and outputs as the notebook constructors."""
     import torch.nn as nn
-    from training.presets import build_backbone
+    from rfa.training.presets import build_backbone
     for preset in ("M2", "M3", "B1", "B2", "B4"):
         args = _small_preset(preset)
         torch.manual_seed(0)
@@ -245,7 +245,7 @@ def test_typed_backbone_matches_notebook_classes():
 
 
 def test_backbone_metadata_per_block():
-    from training.presets import build_backbone
+    from rfa.training.presets import build_backbone
     net = build_backbone(_small_preset("M2")).eval()
     _, infos = net(torch.randn(1, 10, 32), return_metadata=True)
     assert [info["attn_mat"].shape for info in infos] == [(1, 10, 10, 4)] * 2
@@ -287,7 +287,7 @@ def test_compiled_matches_eager():
         print("  (no GPU, skipped)")
         return
     import copy
-    from training.presets import build_backbone
+    from rfa.training.presets import build_backbone
     for make_net in (rfa_net, lambda: build_backbone(_small_preset("M2"))):  # notebook class, typed preset backbone
         torch.manual_seed(0)
         eager = LanguageModel(make_net(), vocab_size=100, embed_dim=32).cuda()

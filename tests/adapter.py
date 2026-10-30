@@ -25,7 +25,7 @@ def _config(overrides):
 
 
 def build_network(overrides):
-    from model import RFATransformerNetwork
+    from rfa.model import RFATransformerNetwork
     args = make_args(overrides)
     return RFATransformerNetwork(
         args, num_blocks=N_BLOCKS, n_heads=N_HEADS, input_dim=D_E,

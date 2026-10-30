@@ -22,25 +22,25 @@ computes attention weights based on residual consistency in Mahalanobis geometry
 
 ```
 robust_filter_attention/
-├── rfa/                      # Core RFA mechanism (self-contained)
+├── rfa/                      # The installable package
 │   ├── config.py             #   RFAConfig: all options of an RFA layer
 │   ├── attention.py          #   MultiheadIsotropicRFA (Algorithm 1 of the paper)
 │   ├── kernels.py            #   Pure functions: rotations, DLE covariance, residual norm, logits
 │   ├── init.py               #   Frequency / decay / complex projection initialization
 │   ├── norm.py               #   Complex RMS norm
-│   └── legacy.py             #   Loading checkpoints saved by the pre-refactor code
-├── model/                    # Transformer backbone and baselines
-│   ├── config.py             #   AttentionConfig (baselines B1-B4), BackboneConfig (the block stack)
-│   ├── layers.py             #   Baseline dot-product attention (RoPE, ALiBi, decay)
-│   ├── blocks.py             #   Block: pre-norm residual block around RFA or baseline attention
-│   ├── networks.py           #   Backbone (stack of Blocks), LanguageModel
-│   └── compat.py             #   args-based constructors used by the paper notebooks
-├── training/                 # Training loops, LM datasets, named model presets (presets.py)
+│   ├── legacy.py             #   Loading checkpoints saved by the pre-refactor code
+│   ├── model/                #   Transformer backbone and baselines
+│   │   ├── config.py         #     AttentionConfig (baselines B1-B4), BackboneConfig (the block stack)
+│   │   ├── layers.py         #     Baseline dot-product attention (RoPE, ALiBi, decay)
+│   │   ├── blocks.py         #     Block: pre-norm residual block around RFA or baseline attention
+│   │   ├── networks.py       #     Backbone (stack of Blocks), LanguageModel
+│   │   └── compat.py         #     args-based constructors used by the paper notebooks
+│   ├── training/             #   Training loops, LM datasets, named model presets (presets.py)
+│   └── utils/                #   Complex arithmetic, seeding, parameter counts
 ├── train_lm.py               # Language-model training script
 ├── eval_extrapolation.py     # Test perplexity at context lengths beyond training (Table 1)
-├── visualization/            # Attention and trajectory visualizations
-├── dynamics/                 # Dynamical system simulators for testing
-├── utils/                    # Misc utilities
+├── visualization/            # Attention and trajectory visualizations (notebooks only; not installed)
+├── dynamics/                 # Dynamical system simulators for testing (notebooks only; not installed)
 ├── figures/                  # Scripts that draw the paper's result figures into images/
 ├── *.ipynb                   # Research notebooks (see "Reproducing the paper")
 └── tests/                    # Regression and smoke tests
@@ -54,11 +54,12 @@ Python 3.11 and PyTorch 2.11 (CUDA 12.8) were used for the paper; `requirements.
 
 ```
 pip install -r requirements.txt   # exact versions used for the paper
-pip install -e .                  # makes rfa, model, training, ... importable from other projects
+pip install -e .                  # makes rfa importable from other projects
 ```
 
 `pip install -e .` installs the code in place, so `import rfa` works from any folder while edits to
-this repository take effect immediately. `pip install -e ".[compile]"` adds Triton for `--compile`
+this repository take effect immediately. Once the repository is on GitHub, `pip install git+https://github.com/<user>/<repo>.git`
+installs it without a local copy. `pip install -e ".[compile]"` adds Triton for `--compile`
 on Windows; `".[notebooks]"` adds Jupyter and SciPy.
 
 ## Using the RFA layer
@@ -79,7 +80,7 @@ type of `config.attention`:
 
 ```python
 from rfa import RFAConfig
-from model import AttentionConfig, BackboneConfig, Backbone, LanguageModel
+from rfa.model import AttentionConfig, BackboneConfig, Backbone, LanguageModel
 
 rfa = RFAConfig(d_model=256, n_heads=8, head_dim=32, frequency_init="spectral", damping=0.05)
 rope = AttentionConfig(d_model=256, n_heads=8, width=512, rope="rope")         # baseline B1
@@ -88,12 +89,12 @@ out, infos = backbone(x, return_metadata=True)  # infos[i]: block i's parameters
 lm = LanguageModel(backbone, vocab_size=50257, embed_dim=256)
 ```
 
-`training/presets.py` gives the paper's models as configs (`backbone_config(make_args("M2"))`).
+`rfa/training/presets.py` gives the paper's models as configs (`backbone_config(make_args("M2"))`).
 
-The paper notebooks use the older constructors in `model/compat.py` (`RFATransformerNetwork`,
+The paper notebooks use the older constructors in `rfa/model/compat.py` (`RFATransformerNetwork`,
 `TransformerNetwork`, `RFA_Block`, ...). They take the notebooks' `args` namespace, build the same
 modules (identical parameter names, so all checkpoints load in both), and keep their original return
-formats. Checkpoints saved before the refactor load with `model.load_legacy_state_dict(model, state_dict)`.
+formats. Checkpoints saved before the refactor load with `rfa.model.load_legacy_state_dict(model, state_dict)`.
 
 ## Training language models
 
@@ -110,7 +111,7 @@ while the run is unfinished (`--resume .../resume.pt`), progress plots, and `met
 (per-epoch train/validation loss, validation perplexity, epoch time; test perplexity at the end).
 `run_queue.ps1` runs a list of trainings one after another.
 
-Presets (`training/presets.py`) cover the paper's models: baselines B1 (RoPE), B2 (ALiBi),
+Presets (`rfa/training/presets.py`) cover the paper's models: baselines B1 (RoPE), B2 (ALiBi),
 B3 (RoPE + decay), B4 (SC-RoPE + decay); RFA models M1, M2, M3; and the ablations M2.1-M2.8:
 M2.7 (minimal SC-RFA: SC rotary attention plus only the additive precision bias, i.e. a learned
 logarithmic distance bias) and M2.8 (M2.6 without value rotation, which is rotary dot-product
