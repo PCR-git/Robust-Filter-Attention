@@ -41,7 +41,7 @@ robust_filter_attention/
 ├── visualization/            # Attention and trajectory visualizations
 ├── dynamics/                 # Dynamical system simulators for testing
 ├── utils/                    # Misc utilities
-├── images/other_imgs/make_figures.py  # Validation and extrapolation figures from finished runs
+├── figures/                  # Scripts that draw the paper's result figures into images/
 ├── *.ipynb                   # Research notebooks (see "Reproducing the paper")
 └── tests/                    # Regression and smoke tests
 ```
@@ -150,8 +150,19 @@ The language-model results come from the scripts above, not the notebooks:
 ```
 python train_lm.py --dataset wikitext103 --preset M2 --compile                # one run per preset (5-8 h each on one GPU)
 python eval_extrapolation.py --dataset wikitext103 runs/wikitext103/M2__<date>  # perplexity at L = 512 ... 4096 (several run dirs allowed)
-python images/other_imgs/make_figures.py                                      # validation and extrapolation figures
 ```
+
+The result figures are drawn by the scripts in `figures/`, into the `images/` paths the paper uses
+(they read the trained runs in `$RFA_RUNS_DIR`, or `./runs`):
+
+```
+python figures/curves.py             # validation curves, extrapolation, damping sweep -> images/other_imgs/
+python figures/attention_maps.py     # last-layer attention at L = 4096 (B1, B2, M1, M2) -> images/attn_mats/
+python figures/parameter_traces.py   # per-head noise, robustness, temperature over training -> images/Noise_params_m*/
+```
+
+Not scripted: the illustrations in `images/explanations/` (theory figures), and the diffusive-to-integrative
+transition figure, which comes from an M2 variant initialized in the diffusive regime that is not a preset.
 
 The notebooks (`Main - *.ipynb`, `Test LMs.ipynb`) are the original research notebooks, kept for
 reference. Their cells were run selectively rather than top to bottom, so running a whole notebook
