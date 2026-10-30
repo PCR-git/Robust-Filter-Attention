@@ -14,6 +14,9 @@ runs/
 *.pt
 !tests/golden/*.pt
 
+# Generated figures (python figures/*.py writes them)
+images/
+
 # Tool caches
 .ruff_cache/
 
