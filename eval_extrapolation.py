@@ -1,7 +1,7 @@
 """
 Length extrapolation: test perplexity of trained language models at context lengths beyond training.
 
-    python eval_extrapolation.py --dataset wikitext103 C:/rfa_runs/wikitext103/M2__2026-10-18 ...
+    python eval_extrapolation.py --dataset wikitext103 runs/wikitext103/M2__2026-10-18 ...
     python eval_extrapolation.py --dataset wikitext103 --lengths 512 1024 2048 4096 8192 <run dirs>
 
 Protocol of the paper (Test LMs notebook): the test split is cut into non-overlapping blocks of L tokens,

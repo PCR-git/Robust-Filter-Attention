@@ -4,7 +4,7 @@ Train a language model (RFA or baseline) on WikiText-103 or BabyLM-2025.
     python train_lm.py --dataset wikitext103 --preset M3 --compile
     python train_lm.py --dataset babylm --preset B1 --batch-size 12
     python train_lm.py --dataset wikitext103 --preset M2 --set damping=0.5     # override any args field
-    python train_lm.py --dataset wikitext103 --preset M3 --resume C:/rfa_runs/.../resume.pt
+    python train_lm.py --dataset wikitext103 --preset M3 --resume runs/wikitext103/.../resume.pt
 
 Presets are defined in training/presets.py. Each run writes to <out-dir>/<dataset>/<name>__<date>/
 (<name> defaults to <backbone>__<preset>):
@@ -12,7 +12,7 @@ Presets are defined in training/presets.py. Each run writes to <out-dir>/<datase
     resume.pt       weights + optimizer/scheduler state of the latest epoch (deleted when the run finishes)
     metrics.txt     per-epoch train/validation loss, validation perplexity, time; test perplexity at the end
     training_progress_epoch_N.png
-The default <out-dir> is outside the source tree (C:/rfa_runs on Windows), e.g. away from OneDrive syncing.
+The default <out-dir> is $RFA_RUNS_DIR if set (e.g. a folder outside a synced source tree), else ./runs.
 """
 
 import argparse
@@ -57,7 +57,7 @@ def write_metrics(path, header, history, test=None):
         f.write("\n".join(lines) + "\n")
 
 
-DEFAULT_OUT_DIR = "C:/rfa_runs" if os.name == "nt" else "runs"
+DEFAULT_OUT_DIR = os.environ.get("RFA_RUNS_DIR", "runs")
 
 
 def main():

@@ -4,17 +4,19 @@
 #
 # Each run logs to $outDir\logs\<name>.log (stdout), <name>.err (stderr: progress bars, warnings)
 # and <name>.gpu.csv (GPU clocks, temperature, power and throttle reasons, once a minute).
-# Results (metrics.txt, plots, checkpoints) go to $outDir\<dataset>\<name>__<date>\ (outside OneDrive).
+# Results (metrics.txt, plots, checkpoints) go to $outDir\<dataset>\<name>__<date>\.
 # Before each run, waits until the GPU is nearly free (e.g. until notebook kernels release their memory).
 # Close the window to stop the queue.
 # -Skip name1,name2 skips runs by name (e.g. ones already finished).
 # To continue an interrupted run, add --resume <run dir>\resume.pt (plus its original --set overrides) to its arguments.
+# Python: $env:RFA_PYTHON if set (e.g. a conda env's python.exe), else "python" on PATH.
+# Output: $env:RFA_RUNS_DIR if set (e.g. a folder outside OneDrive), else <repo>\runs.
 
 param([string[]]$Skip = @())
 
-$python = "C:\Users\pcrac\miniconda3\envs\ai\python.exe"
+$python = if ($env:RFA_PYTHON) { $env:RFA_PYTHON } else { "python" }
 $repo = $PSScriptRoot
-$outDir = "C:\rfa_runs"  # outside OneDrive
+$outDir = if ($env:RFA_RUNS_DIR) { $env:RFA_RUNS_DIR } else { Join-Path $repo "runs" }
 
 # dataset, preset, name, extra arguments to train_lm.py (defaults match the published runs)
 # Run names below use the numbering before 2026-10-28: run "M2.7" is now preset M2.8 and vice versa.

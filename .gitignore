@@ -10,6 +10,7 @@ datasets/
 hf_cache/
 gpt2_tokenizer/
 saved_models/
+runs/
 *.pt
 !tests/golden/*.pt
 

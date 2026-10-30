@@ -85,7 +85,7 @@ python train_lm.py --dataset wikitext103 --preset M2 --set damping=0.5   # overr
 ```
 
 Each run writes to `<out-dir>/<dataset>/<name>__<date>/` (`--out-dir` defaults to
-`C:/rfa_runs` on Windows, outside the synced source folder; `--name` to `<backbone>__<preset>`):
+`$RFA_RUNS_DIR` if set, e.g. a folder outside a synced source tree, else `./runs`; `--name` to `<backbone>__<preset>`):
 model weights of the last two epochs (`lm_epoch_N.pt`), `resume.pt` with the optimizer state
 while the run is unfinished (`--resume .../resume.pt`), progress plots, and `metrics.txt`
 (per-epoch train/validation loss, validation perplexity, epoch time; test perplexity at the end).
