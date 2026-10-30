@@ -18,6 +18,11 @@ INTENTIONAL_CHANGES = {
     "B4_sc_rope": "SC-RoPE fixed to a true pairwise rotation (checked in test_smoke.py)",
 }
 
+# Golden configs of features that were removed since (not used in the paper).
+REMOVED_FEATURES = {
+    "M2_cnorm_qkv": "complex RMS norm removed",
+}
+
 
 def _config(overrides):
     from rfa import RFAConfig

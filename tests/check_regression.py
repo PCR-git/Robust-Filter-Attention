@@ -159,6 +159,9 @@ def main(selected):
         if "error" in g:
             print(f"[skip]  {name}  (broken in original: {g['error']})")
             continue
+        if name in adapter.REMOVED_FEATURES:
+            print(f"[skip]  {name}  ({adapter.REMOVED_FEATURES[name]})")
+            continue
         if name in adapter.INTENTIONAL_CHANGES:
             print(f"[changed] {name}  ({adapter.INTENTIONAL_CHANGES[name]})")
             continue

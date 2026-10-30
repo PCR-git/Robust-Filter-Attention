@@ -33,7 +33,6 @@ BASE_ARGS = dict(
     use_robust_weight=True, additive_bias_type=1, multiplicative_bias_type=1,
     use_full_residual_norm=1, rotate_values=True, zero_rotations=False, lambda_real_zero=False,
     zero_process_noise=False, zero_key_measurement_noise=False,
-    use_complex_input_norm=0, use_complex_output_norm=False,
 
     # Numerics
     epsilon=1e-5, min_exponent=-10, max_exponent=0,

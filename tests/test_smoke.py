@@ -25,17 +25,11 @@ def rfa_net(overrides=None, d=32, heads=4, blocks=2):
                                  query_key_dim_total=d, value_dim_total=d, hidden_dim=2 * d)
 
 
-def test_qk_norm_mode():
-    """use_complex_input_norm=2 crashed in the original code (V_norm undefined)."""
-    net = rfa_net({"use_complex_input_norm": 2})
-    out, _ = net(torch.randn(2, 10, 32))
-    assert out.shape == (2, 10, 32) and torch.isfinite(out).all()
-
-
 def test_removed_flags_raise():
     for flag, value in [("learn_t_shift", True), ("learn_decay", True), ("sep_params", True),
                         ("use_colored_prior", True), ("use_inner_residual", True),
-                        ("add_gaussian_noise", True), ("additive_bias_type", 2), ("use_outer_residual", False)]:
+                        ("add_gaussian_noise", True), ("additive_bias_type", 2), ("use_outer_residual", False),
+                        ("use_complex_input_norm", 1), ("use_complex_output_norm", True)]:
         try:
             rfa_net({flag: value})
         except ValueError:
@@ -50,7 +44,7 @@ def test_no_value_rotation_ablation():
                                             rotate_values=False)).double().eval()
     x = torch.randn(2, 12, 16, dtype=torch.float64)
     _, meta = layer(x, return_metadata=True)
-    V = layer._project_in(layer.W_v, x, "cn_v")
+    V = layer._project_in(layer.W_v, x)
     expected = torch.einsum("bijh,bjhdc->bihdc", meta["decayed_attn_mat"], V)
     assert torch.allclose(meta["est_latent"], expected)
 

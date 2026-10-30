@@ -6,7 +6,6 @@ from .config import RFAConfig
 from .init import (inv_softplus, init_complex_matrix, init_complex_linear_,
                    init_rope, init_spectrally_coupled_rope, init_decay_per_head)
 from .kernels import rotate, rotation_angles, pairwise_lags, lag_covariance, residual_norm_sq, robust_logits
-from .norm import ComplexRMSNorm
 
 
 class MultiheadIsotropicRFA(nn.Module):
@@ -76,14 +75,6 @@ class MultiheadIsotropicRFA(nn.Module):
         init_complex_linear_(self.W_v, init_complex_matrix(c.d_model, width), "in")
         init_complex_linear_(self.W_o, init_complex_matrix(width, c.d_model), "out")
 
-        if c.complex_input_norm is not None:
-            self.cn_q = ComplexRMSNorm(H, D)
-            self.cn_k = ComplexRMSNorm(H, D)
-            if c.complex_input_norm == "qkv":
-                self.cn_v = ComplexRMSNorm(H, D)
-        if c.complex_output_norm:
-            self.cn_o = ComplexRMSNorm(H, D)
-
     # ------------------------------------------------------------------
 
     def sde_params(self):
@@ -105,11 +96,9 @@ class MultiheadIsotropicRFA(nn.Module):
         tau = F.softplus(self.tau_raw) + c.epsilon
         return dict(mu=mu, omega=omega, process_var=process_var, eta_sq=eta_sq, gamma_sq=gamma_sq, nu=nu, tau=tau)
 
-    def _project_in(self, W, Z, norm_name):
+    def _project_in(self, W, Z):
         B, N, _ = Z.shape
-        X = W(Z).view(B, N, 2, self.config.n_heads, self.config.head_dim).permute(0, 1, 3, 4, 2)
-        norm = getattr(self, norm_name, None)
-        return X if norm is None else norm(X)
+        return W(Z).view(B, N, 2, self.config.n_heads, self.config.head_dim).permute(0, 1, 3, 4, 2)
 
     def forward(self, Z_q, Z_k=None, Z_v=None, t_measure=None, causal=True, return_metadata=False):
         """
@@ -143,9 +132,9 @@ class MultiheadIsotropicRFA(nn.Module):
                                c.process_noise, mu_eps=c.epsilon, cov_eps=c.cov_epsilon)
 
         # --- Project and rotate into the stationary frame (Phi^-) ---
-        Q = rotate(self._project_in(self.W_q, Z_q, "cn_q"), cos, -sin)
-        K = rotate(self._project_in(self.W_k, Z_k, "cn_k"), cos, -sin)
-        V = self._project_in(self.W_v, Z_v, "cn_v")
+        Q = rotate(self._project_in(self.W_q, Z_q), cos, -sin)
+        K = rotate(self._project_in(self.W_k, Z_k), cos, -sin)
+        V = self._project_in(self.W_v, Z_v)
         if c.rotate_values:
             V = rotate(V, cos, -sin)
 
@@ -163,8 +152,7 @@ class MultiheadIsotropicRFA(nn.Module):
         if c.rotate_values:
             est = rotate(est, cos, sin)
 
-        est_out = self.cn_o(est) if c.complex_output_norm else est
-        out = self.W_o(est_out.permute(0, 1, 4, 2, 3).reshape(B, N, -1))  # [re heads..., im heads...]
+        out = self.W_o(est.permute(0, 1, 4, 2, 3).reshape(B, N, -1))  # [re heads..., im heads...]
 
         info = self._param_summary(p)
         if return_metadata:

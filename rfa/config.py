@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -46,10 +46,6 @@ class RFAConfig:
     zero_process_noise: bool = False
     zero_key_measurement_noise: bool = False
 
-    # --- Complex RMS norms on the projected streams ---
-    complex_input_norm: Optional[Literal["qkv", "qk"]] = None
-    complex_output_norm: bool = False
-
     # --- Numerics ---
     epsilon: float = 1e-5
     cov_epsilon: float = 1e-2
@@ -71,6 +67,8 @@ class RFAConfig:
         for name, bad in removed.items():
             if getattr(args, name, not bad) == bad:
                 raise ValueError(f"args.{name}={bad} is no longer supported (feature removed in the refactor).")
+        if getattr(args, "use_complex_input_norm", 0) or getattr(args, "use_complex_output_norm", False):
+            raise ValueError("args.use_complex_input_norm / use_complex_output_norm are no longer supported (feature removed).")
         if getattr(args, "additive_bias_type", 1) not in (0, 1) or getattr(args, "multiplicative_bias_type", 1) not in (0, 1):
             raise ValueError("Only additive/multiplicative_bias_type 0 (off) or 1 (DLE) are supported.")
 
@@ -101,8 +99,6 @@ class RFAConfig:
             zero_decay=args.lambda_real_zero,
             zero_process_noise=args.zero_process_noise,
             zero_key_measurement_noise=args.zero_key_measurement_noise,
-            complex_input_norm={0: None, 1: "qkv", 2: "qk"}[args.use_complex_input_norm],
-            complex_output_norm=args.use_complex_output_norm,
             epsilon=args.epsilon,
             min_exponent=args.min_exponent,
             max_exponent=args.max_exponent,

@@ -1,4 +1,4 @@
-from rfa import RFAConfig, MultiheadIsotropicRFA, ComplexRMSNorm, convert_legacy_state_dict, load_legacy_state_dict
+from rfa import RFAConfig, MultiheadIsotropicRFA, convert_legacy_state_dict, load_legacy_state_dict
 from .config import AttentionConfig, BackboneConfig
 from .layers import MultiHeadAttentionLayer
 from .blocks import Block, build_attention
