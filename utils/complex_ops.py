@@ -18,22 +18,3 @@ def complex_matmul(A, B):
     imag_part = torch.matmul(A_real, B_imag) + torch.matmul(A_imag, B_real)
     
     return torch.stack([real_part, imag_part], dim=0)
-
-###############################################
-###############################################
-
-def apply_interleaved_rope(x, cos, sin):
-    """
-    x:   [B, L, H, D, 2] (Interleaved Query/Key/Value)
-    cos: [1, L, 1, D]    (Precomputed Cosine)
-    sin: [1, L, 1, D]    (Precomputed Sine)
-    """
-    # x[..., 0] is Real, x[..., 1] is Imag
-    # Standard complex rotation: (R + iI) * (cos + i*sin)
-    # = (R*cos - I*sin) + i(R*sin + I*cos)
-    
-    res_real = x[..., 0] * cos - x[..., 1] * sin
-    res_imag = x[..., 0] * sin + x[..., 1] * cos
-    
-    # Return as [..., D, 2]
-    return torch.stack([res_real, res_imag], dim=-1)

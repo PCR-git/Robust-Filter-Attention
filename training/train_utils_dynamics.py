@@ -1,11 +1,4 @@
-import numpy as np
 import torch
-import torch.nn as nn
-
-from matplotlib import pyplot as plt
-import matplotlib.cm as cm
-plt.rcParams['figure.figsize'] = [10, 10]
-plt.rc('font', size=20)
 
 ##########################################################################################
 ##########################################################################################
@@ -93,7 +86,7 @@ def single_epoch_attn_dynamics(model, train_loader, optimizer, loss, params_list
         # Single iteration of training
 #         epoch_losses[it] = single_iter_attn(model, optimizer, loss, inputs, outputs, args)
 
-        out, _ = model(inputs, args.causal)
+        out, _ = model(inputs, causal=args.causal)
 
         loss_i = loss(out, target) # Compute loss
         
@@ -110,19 +103,3 @@ def single_epoch_attn_dynamics(model, train_loader, optimizer, loss, params_list
             scheduler.step()
         
     return epoch_losses
-
-##########################################################################################
-##########################################################################################
-
-def hook_fn(grad):
-    """
-    Hook function to get gradients and plot
-    """
-    
-#     print(grad)
-    grad_mean = grad.mean(dim=[0, 1, 2])
-#     print(f"Mean gradient per component: {grad_mean}")
-    plt.scatter(np.arange(args.embed_dim),grad_mean.detach().cpu().numpy())
-    plt.show()
-#     print(f"Max gradient per component: {grad.abs().max(dim=[0, 1, 2])}")
-    return grad

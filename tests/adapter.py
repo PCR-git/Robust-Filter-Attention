@@ -33,14 +33,23 @@ def build_network(overrides):
     )
 
 
+def _unused_norm(key, overrides):
+    """The original blocks created both real norms even when use_real_input/output_norm turned them off."""
+    args = make_args(overrides)
+    return (".norm1." in key and not args.use_real_input_norm) or (".norm2." in key and not args.use_real_output_norm)
+
+
 def convert_state(legacy_state, overrides):
     from rfa import convert_legacy_state_dict
-    return convert_legacy_state_dict(legacy_state, _config(overrides))
+    new = convert_legacy_state_dict(legacy_state, _config(overrides))
+    return {k: v for k, v in new.items() if not _unused_norm(k, overrides)}
 
 
 def legacy_to_new_key(legacy_key, overrides):
     """Map a legacy state_dict key to the current one (None = dropped)."""
     from rfa.legacy import convert_legacy_key
+    if _unused_norm(legacy_key, overrides):
+        return None
     return convert_legacy_key(legacy_key, _config(overrides))
 
 

@@ -95,14 +95,22 @@ def is_baseline(args):
     return args.preset.startswith("B")
 
 
-def build_backbone(args):
-    from model import TransformerNetwork, RFATransformerNetwork
+def backbone_config(args):
+    """Typed BackboneConfig of the model described by `args` (paper layout: LayerNorm, FFN width 4 d)."""
+    from model import BackboneConfig
+    from model.compat import attention_config_from_args, rfa_config_from_args, rfa_backbone_config
     if is_baseline(args):
-        return TransformerNetwork(args.d_e, 2 * args.d_e, 4 * args.d_e, args.n_heads, args,
-                                  num_blocks=args.num_blocks, Norm=nn.LayerNorm, io_projections=args.io_projections)
-    return RFATransformerNetwork(args=args, num_blocks=args.num_blocks, n_heads=args.n_heads, input_dim=args.d_e,
-                                 query_key_dim_total=args.d_k_total, value_dim_total=args.d_v_total,
-                                 hidden_dim=4 * args.d_v_total, Norm=nn.LayerNorm, io_projections=args.io_projections)
+        attention = attention_config_from_args(args, args.d_e, args.n_heads, 2 * args.d_e)
+        return BackboneConfig(attention=attention, n_blocks=args.num_blocks, ffn_dim=4 * args.d_e, norm="layer",
+                              io_projections=args.io_projections)
+    attention = rfa_config_from_args(args, args.n_heads, args.d_e,
+                                     query_key_dim_total=args.d_k_total, value_dim_total=args.d_v_total)
+    return rfa_backbone_config(args, attention, args.num_blocks, 4 * args.d_v_total, nn.LayerNorm, args.io_projections)
+
+
+def build_backbone(args):
+    from model import Backbone
+    return Backbone(backbone_config(args), grad_checkpointing=args.grad_checkpointing)
 
 
 def build_language_model(args, embed_init_std=None):

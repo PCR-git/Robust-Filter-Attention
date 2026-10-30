@@ -26,7 +26,12 @@ robust_filter_attention/
 │   ├── init.py               #   Frequency / decay / complex projection initialization
 │   ├── norm.py               #   Complex RMS norm
 │   └── legacy.py             #   Loading checkpoints saved by the pre-refactor code
-├── model/                    # Transformer blocks, networks, baselines (RoPE, ALiBi, ...)
+├── model/                    # Transformer backbone and baselines
+│   ├── config.py             #   AttentionConfig (baselines B1-B4), BackboneConfig (the block stack)
+│   ├── layers.py             #   Baseline dot-product attention (RoPE, ALiBi, decay)
+│   ├── blocks.py             #   Block: pre-norm residual block around RFA or baseline attention
+│   ├── networks.py           #   Backbone (stack of Blocks), LanguageModel
+│   └── compat.py             #   args-based constructors used by the paper notebooks
 ├── training/                 # Training loops, LM datasets, named model presets (presets.py)
 ├── train_lm.py               # Language-model training script
 ├── visualization/            # Attention and trajectory visualizations
@@ -48,9 +53,28 @@ layer = MultiheadIsotropicRFA(config)
 out, info = layer(x)  # x: [B, N, 256]; add `out` to the residual stream
 ```
 
-The notebooks build layers from their `args` namespace through `RFAConfig.from_args`
-(see `model/blocks.py`). Checkpoints saved before the refactor load with
-`model.load_legacy_state_dict(model, state_dict)`.
+## Building models
+
+A `Backbone` is a stack of residual blocks whose attention is RFA or a baseline, depending on the
+type of `config.attention`:
+
+```python
+from rfa import RFAConfig
+from model import AttentionConfig, BackboneConfig, Backbone, LanguageModel
+
+rfa = RFAConfig(d_model=256, n_heads=8, head_dim=32, frequency_init="spectral", damping=0.05)
+rope = AttentionConfig(d_model=256, n_heads=8, width=512, rope="rope")         # baseline B1
+backbone = Backbone(BackboneConfig(attention=rfa, n_blocks=6, ffn_dim=1024, io_projections=False))
+out, infos = backbone(x, return_metadata=True)  # infos[i]: block i's parameters and diagnostics
+lm = LanguageModel(backbone, vocab_size=50257, embed_dim=256)
+```
+
+`training/presets.py` gives the paper's models as configs (`backbone_config(make_args("M2"))`).
+
+The paper notebooks use the older constructors in `model/compat.py` (`RFATransformerNetwork`,
+`TransformerNetwork`, `RFA_Block`, ...). They take the notebooks' `args` namespace, build the same
+modules (identical parameter names, so all checkpoints load in both), and keep their original return
+formats. Checkpoints saved before the refactor load with `model.load_legacy_state_dict(model, state_dict)`.
 
 ## Training language models
 

@@ -9,10 +9,7 @@ plt.rc('font', size=20)
 
 from utils import complex_matmul
 
-from model import RFATransformerBlock
 from model import MultiheadIsotropicRFA
-from model import RFA_Block
-from model import RFATransformerNetwork
 
 ##########################################################################################
 ##########################################################################################
@@ -788,62 +785,11 @@ def visualize_results_attn(model, train_dataset, all_losses, R1, R1i, Pu, Pd, A,
         
 def _get_visual_modules(model: nn.Module):
     """
-    Identifies and returns the main model and its
-    last inner attention layer from a given model instance,
-    for use in visualize_results.
-
-    This helper function adapts to different top-level model architectures.
-
-    Args:
-        model (nn.Module): The top-level model instance.
-
-    Returns:
-        tuple[nn.Module | None, nn.Module | None]: A tuple containing:
-            - The main model instance for visualization.
-            - The last attention layer instance within that main block.
-            Returns (None, None) if the required modules cannot be found.
+    The first RFA layer of `model` (any module containing MultiheadIsotropicRFA layers), returned twice
+    as (main attention block, its last inner layer) for visualize_results; (None, None) if there is none.
     """
-    
-    main_attention_block = None
-    last_inner_layer_of_main_attention_block = None
-            
-   # Model is RFATransformerBlock
-    if isinstance(model, RFATransformerBlock):
-        if hasattr(model, 'attn'):
-            if isinstance(model.attn, MultiheadIsotropicRFA):
-                main_attention_block = model.attn
-    
-    # Model is RFATransformerNetwork
-    # (This network contains 'blocks', which are RFATransformerBlock instances)
-    elif isinstance(model, RFATransformerNetwork):
-        # We'll take the attention block from the *first* RFATransformerBlock in the network
-        if hasattr(model, 'blocks') and len(model.blocks) > 0:
-            first_transformer_block = model.blocks[0]
-            if hasattr(first_transformer_block, 'attn'):
-                if isinstance(first_transformer_block.attn, MultiheadIsotropicRFA):
-                    main_attention_block = first_transformer_block.attn            
-            
-    ###################
-            
-    # If a main_attention_block was found, now try to get its last inner layer
-    if main_attention_block is not None:
-        if isinstance(main_attention_block, MultiheadIsotropicRFA): 
-            last_inner_layer_of_main_attention_block = main_attention_block
-        else:
-            print(f"Warning: Main attention block ({main_attention_block.__class__.__name__}) found, "
-                  f"but its last inner layer (FullPrecisionAttentionBlockShared) could not be retrieved. "
-                  f"Some visualizations might not work.")
-            
-    ###################
-
-    # Model is RFA_Block
-    if isinstance(model, RFA_Block):
-        if hasattr(model, 'layers') and len(model.layers) > 0 and \
-           isinstance(model.layers[0], MultiheadIsotropicRFA):
-            main_attention_block = model.layers[0]
-            last_inner_layer_of_main_attention_block = model.layers[0]
-            
-    return main_attention_block, last_inner_layer_of_main_attention_block
+    layer = next((m for m in model.modules() if isinstance(m, MultiheadIsotropicRFA)), None)
+    return layer, layer
 
 ##########################################################################################
 ##########################################################################################
