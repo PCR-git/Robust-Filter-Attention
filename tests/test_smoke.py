@@ -61,15 +61,15 @@ def test_no_value_rotation_ablation():
     assert not torch.allclose(meta_rot["est_latent"], expected)
 
 
-def test_m27_is_rotary_attention():
-    """Preset M2.7 (M2.6 without value rotation) equals plain rotary dot-product attention."""
+def test_m28_is_rotary_attention():
+    """Preset M2.8 (M2.6 without value rotation) equals plain rotary dot-product attention."""
     import math
     from training.presets import make_args as preset_args
     from model import build_rfa_layer
     from rfa.kernels import rotate, rotation_angles
     for spectral in (True, False):
         torch.manual_seed(0)
-        args = preset_args("M2.7", d_e=32, d_k_total=32, d_v_total=32, n_heads=4, use_SC_RoPE=spectral)
+        args = preset_args("M2.8", d_e=32, d_k_total=32, d_v_total=32, n_heads=4, use_SC_RoPE=spectral)
         layer = build_rfa_layer(args, n_heads=4, input_dim=32, query_key_dim_total=32, value_dim_total=32).double()
         with torch.no_grad():
             for p in layer.parameters():
@@ -96,6 +96,43 @@ def test_m27_is_rotary_attention():
         Ks = rotate(layer.W_k(same).view(B, N, 2, H, D).permute(0, 1, 3, 4, 2), cos, -sin)
         L = torch.einsum("bihdc,bjhdc->bijh", Qs, Ks)[0]
         assert max(torch.diagonal(L, offset=o).std(dim=-1).max().item() for o in range(-20, 21)) < 1e-10
+
+
+def test_m27_is_rotary_attention_plus_log_bias():
+    """Preset M2.7 equals SC rotary dot-product attention plus the additive bias -log Sigma(dt)."""
+    import math
+    from training.presets import make_args as preset_args
+    from model import build_rfa_layer
+    from rfa.kernels import rotate, rotation_angles
+    torch.manual_seed(0)
+    args = preset_args("M2.7", d_e=32, d_k_total=32, d_v_total=32, n_heads=4)
+    layer = build_rfa_layer(args, n_heads=4, input_dim=32, query_key_dim_total=32, value_dim_total=32).double()
+    with torch.no_grad():
+        for p in layer.parameters():
+            p.add_(0.1 * torch.randn_like(p))
+    x = torch.randn(2, 24, 32, dtype=torch.float64)
+    out, _ = layer(x)
+
+    B, N, H, D = 2, 24, 4, 8
+    proj = lambda W: W(x).view(B, N, 2, H, D).permute(0, 1, 3, 4, 2)
+    p = layer.sde_params()
+    assert torch.all(p["mu"] == 0)
+    t = torch.arange(N, dtype=torch.float64)
+    cos, sin = rotation_angles(p["omega"], t[None])
+    Q, K, V = rotate(proj(layer.W_q), cos, -sin), rotate(proj(layer.W_k), cos, -sin), proj(layer.W_v)
+    dt = (t[:, None] - t[None, :]).abs()[None, :, :, None]
+    Sigma = p["process_var"] * dt + p["eta_sq"] + p["gamma_sq"] + layer.config.cov_epsilon
+    logits = p["tau"] * (torch.einsum("bihdc,bjhdc->bijh", Q, K) / math.sqrt(D) - torch.log(Sigma))
+    causal = torch.ones(N, N, dtype=torch.bool).tril()[None, :, :, None]
+    A = torch.softmax(logits.masked_fill(~causal, float("-inf")), dim=2)
+    ref = layer.W_o(torch.einsum("bijh,bjhdc->bihdc", A, V).permute(0, 1, 4, 2, 3).reshape(B, N, -1))
+    assert torch.allclose(out, ref)
+
+    # sigma^2 starts coupled to the spectrum: 2 * damping * omega_max * target_ss_process_var
+    fresh = build_rfa_layer(args, n_heads=4, input_dim=32, query_key_dim_total=32, value_dim_total=32)
+    expected = 2 * 0.05 * fresh.omega[:, -1] * 0.1
+    expected[: int(4 * 0.25)] = 0
+    assert torch.allclose(fresh.sde_params()["process_var"], expected, atol=1e-5)
 
 
 def test_rope_is_relative_rotation():

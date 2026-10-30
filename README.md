@@ -68,8 +68,10 @@ while the run is unfinished (`--resume .../resume.pt`), progress plots, and `met
 `run_queue.ps1` runs a list of trainings one after another.
 
 Presets (`training/presets.py`) cover the paper's models: baselines B1 (RoPE), B2 (ALiBi),
-B3 (RoPE + decay), B4 (SC-RoPE + decay); RFA models M1, M2, M3; ablations M2.1-M2.6; and
-M2.7 (M2.6 without value rotation), which is rotary dot-product attention implemented inside RFA.
+B3 (RoPE + decay), B4 (SC-RoPE + decay); RFA models M1, M2, M3; and the ablations M2.1-M2.8:
+M2.7 (minimal SC-RFA: SC rotary attention plus only the additive precision bias, i.e. a learned
+logarithmic distance bias) and M2.8 (M2.6 without value rotation, which is rotary dot-product
+attention implemented inside RFA).
 
 Speed: `--compile` applies `torch.compile` to the backbone (on Windows this needs
 `triton-windows`, see requirements.txt). At batch 16 it makes RFA 1.8x faster and uses

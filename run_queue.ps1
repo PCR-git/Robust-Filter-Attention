@@ -17,24 +17,14 @@ $repo = $PSScriptRoot
 $outDir = "C:\rfa_runs"  # outside OneDrive
 
 # dataset, preset, name, extra arguments to train_lm.py (defaults match the published runs)
-# Done 2026-10-18: wikitext103 B1, M2. M2.7_rope_spec was cut off by a Windows Update reboot after epoch 8.
+# Run names below use the numbering before 2026-10-28: run "M2.7" is now preset M2.8 and vice versa.
+# Done 2026-10-18/19: wikitext103 B1, M2, M2.7_rope_spec, M2.7, B3, B4. M1 was stopped after epoch 6 on 2026-10-19.
+# Done 2026-10-19/21: babylm B1; wikitext103 M1 (resumed), M3, M2.1-M2.6. Done 2026-10-23: wikitext103 M2.8.
+# 2026-10-28: B2 rerun for its per-epoch validation curve (the published history is lost).
 $runs = @(
-    @("wikitext103", "M2.7", "M2.7_rope_spec", "--set use_SC_RoPE=False --resume C:\rfa_runs\wikitext103\M2.7_rope_spec__2026-10-18\resume.pt"),
-    @("wikitext103", "M2.7", "M2.7",          ""),
-    @("wikitext103", "B3",   "B3",            ""),
-    @("wikitext103", "B4",   "B4",            ""),
-    @("wikitext103", "M1",   "M1",            ""),
-    @("wikitext103", "M3",   "M3",            ""),
-    @("wikitext103", "M2.1", "M2.1",          ""),
-    @("wikitext103", "M2.2", "M2.2",          ""),
-    @("wikitext103", "M2.3", "M2.3",          ""),
-    @("wikitext103", "M2.4", "M2.4",          ""),
-    @("wikitext103", "M2.5", "M2.5",          ""),
-    @("wikitext103", "M2.6", "M2.6",          ""),
-    @("babylm",      "B1",   "B1",            ""),
-    @("babylm",      "B3",   "B3",            ""),
-    @("babylm",      "B4",   "B4",            "")
+    ,@("wikitext103", "B2",   "B2",            "")  # leading comma: keeps a one-run list from being flattened
 )
+$evalAfter = $true  # run eval_extrapolation.py on each finished run
 
 $logDir = Join-Path $outDir "logs"
 New-Item -ItemType Directory -Force $logDir | Out-Null
@@ -70,5 +60,13 @@ foreach ($run in $runs) {
     }
     Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  END   $name  (exit code $($p.ExitCode))"
     Get-Content $log | Select-String -Pattern "^Epoch|^Test" | Select-Object -Last 2 | ForEach-Object { Write-Host "        $_" }
+    if ($evalAfter -and $p.ExitCode -eq 0) {
+        $runDir = Get-ChildItem (Join-Path $outDir $dataset) -Directory -Filter "${runName}__*" |
+                  Sort-Object LastWriteTime | Select-Object -Last 1
+        Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  EVAL  $name  ($($runDir.FullName))"
+        $evalLog = Join-Path $logDir "$name.extrapolation.log"
+        & $python -u (Join-Path $repo "eval_extrapolation.py") --dataset $dataset --data-dir (Join-Path $repo "datasets") $runDir.FullName *> $evalLog
+        Get-Content $evalLog | Select-Object -Last 6 | ForEach-Object { Write-Host "        $_" }
+    }
 }
 Write-Host "Queue finished."

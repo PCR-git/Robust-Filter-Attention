@@ -65,10 +65,17 @@ PRESETS = {
     "M2.5": dict(_SC, damping=0.05, zero_rotations=True),                           # no rotations
     "M2.6": dict(_SC, damping=0.0, use_robust_weight=False, use_full_residual_norm=0, # pure rotation
                  lambda_real_zero=True, max_fixed_decay=0.0, **_NO_DLE),
-    # M2.6 without value rotation: exactly rotary dot-product attention (conjugate-pair frequencies,
-    # learned temperature), i.e. RoPE implemented inside RFA. Add --set use_SC_RoPE=False for the
+    # Minimal SC-RFA: rotary dot-product attention plus only the additive precision bias
+    # -log(sigma^2 dt + eta^2 + gamma^2) (zero decay, exponential weight, no gate, no value rotation).
+    # damping=0.05 is kept so sigma^2 is initialized coupled to the spectrum (2 * 0.05 * omega_max * 0.1).
+    # (Trained 2026-10-23 as run "M2.8", before the presets were renumbered to match the paper.)
+    "M2.7": dict(_SC, damping=0.05, lambda_real_zero=True, use_robust_weight=False, use_full_residual_norm=0,
+                 multiplicative_bias_type=0, rotate_values=False),
+    # Rotary limit: M2.6 without value rotation, i.e. exactly rotary dot-product attention (conjugate-pair
+    # frequencies, learned temperature), RoPE implemented inside RFA. Add --set use_SC_RoPE=False for the
     # standard (unpartitioned) RoPE spectrum in every head.
-    "M2.7": dict(_SC, damping=0.0, use_robust_weight=False, use_full_residual_norm=0,
+    # (Trained 2026-10-18/19 as runs "M2.7" and "M2.7_rope_spec", before the renumbering.)
+    "M2.8": dict(_SC, damping=0.0, use_robust_weight=False, use_full_residual_norm=0,
                  lambda_real_zero=True, max_fixed_decay=0.0, rotate_values=False, **_NO_DLE),
 }
 
