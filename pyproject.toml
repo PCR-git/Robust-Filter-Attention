@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robust-filter-attention"
+version = "1.0.0"
+description = "Robust Filter Attention (RFA): attention as robust filtering under a linear SDE model"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Peter Racioppo" }]
+requires-python = ">=3.11"
+# Loose bounds for installing; requirements.txt pins the versions the paper's runs used.
+dependencies = [
+    "torch>=2.5",
+    "numpy",
+    "matplotlib",
+    "tqdm",
+    "transformers",
+    "datasets",
+]
+
+[project.optional-dependencies]
+notebooks = ["scipy", "jupyter"]
+compile = ['triton-windows>=3.7,<3.8; sys_platform == "win32"']  # torch.compile on Windows; Linux torch wheels include Triton
+
+[tool.setuptools]
+packages = { find = { include = ["rfa*", "model*", "training*", "utils*", "visualization*", "dynamics*"] } }
