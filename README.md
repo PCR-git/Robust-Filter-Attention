@@ -8,6 +8,8 @@ Robust Filter Attention (RFA) is an attention mechanism for sequence modeling un
 Rather than comparing queries and keys directly, RFA evolves past representations forward under learned dynamics and
 computes attention weights based on residual consistency in Mahalanobis geometry, yielding robust, uncertainty-aware attention.
 
+An efficient (fused) Triton implementation can be found in the Dynamical Kernel Attention repository: https://github.com/PCR-git/Dynamical-Kernel-Attention
+
 ---
 
 # Key Features
